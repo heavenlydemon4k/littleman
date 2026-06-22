@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Plus, Trash2, MessageSquare, Settings, FolderOpen, Bot, Activity } from "lucide-react";
+import { Plus, Trash2, MessageSquare, Settings, FolderOpen, Bot, Activity, Radio } from "lucide-react";
 import clsx from "clsx";
 import type { ChatSession } from "../../types";
 
@@ -59,8 +59,27 @@ export function Sidebar() {
         </Link>
       </div>
 
+      {/* Main agent session (pinned) */}
+      {sessions.some((s) => s.id === "main") && (
+        <div className="px-2 pt-2">
+          <Link
+            to="/chat/main"
+            className={clsx(
+              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
+              sessionId === "main"
+                ? "bg-surface-3 text-white"
+                : "text-muted hover:bg-surface-2 hover:text-white"
+            )}
+          >
+            <Radio size={14} className="flex-shrink-0 text-green-400" />
+            <span className="flex-1 truncate">Main · agent</span>
+            <span className="rounded bg-surface-4 px-1.5 py-0.5 text-[10px] text-muted">auto</span>
+          </Link>
+        </div>
+      )}
+
       {/* New chat */}
-      <div className="p-3">
+      <div className="px-3 pb-2 pt-2">
         <button
           onClick={newSession}
           className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted hover:border-blue-500 hover:text-white transition-colors"
@@ -70,12 +89,12 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Session list */}
+      {/* User session list */}
       <nav className="flex-1 overflow-y-auto px-2 pb-2">
-        {sessions.length === 0 && (
+        {sessions.filter((s) => s.id !== "main").length === 0 && (
           <p className="px-3 py-4 text-xs text-muted">No conversations yet</p>
         )}
-        {sessions.map((s) => (
+        {sessions.filter((s) => s.id !== "main").map((s) => (
           <Link
             key={s.id}
             to={`/chat/${s.id}`}

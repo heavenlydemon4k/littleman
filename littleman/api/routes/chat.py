@@ -59,6 +59,10 @@ async def rename_session(session_id: str, body: dict, db: AsyncSession = Depends
 
 @router.delete("/sessions/{session_id}")
 async def delete_session(session_id: str, db: AsyncSession = Depends(get_db)):
+    from littleman.agent.mainlog import MAIN_SESSION_ID
+
+    if session_id == MAIN_SESSION_ID:
+        return {"ok": False, "error": "the Main agent session cannot be deleted"}
     await db.execute(delete(ChatMessage).where(ChatMessage.session_id == session_id))
     await db.execute(delete(ChatSession).where(ChatSession.id == session_id))
     await db.commit()
@@ -96,6 +100,8 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
                 continue
 
             user_text: str = data["content"]
+            thinking_on: bool = bool(data.get("thinking"))
+            skills_on: bool = data.get("skills", True)
 
             user_msg = ChatMessage(
                 id=str(uuid.uuid4()),
@@ -115,7 +121,7 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
             history = await _load_history(session_id, db)
             model = await _resolve_model(db)
             soul = load_soul()
-            tools = build_tool_definitions()
+            tools = _chat_tools() if skills_on else []
 
             assistant_id = str(uuid.uuid4())
             await ws.send_json({"type": "assistant_start", "id": assistant_id})
@@ -124,7 +130,7 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
             accumulated_thinking = ""
             pending_tool_calls: list[dict] = []
 
-            async for event in _stream_llm(model, soul, history, tools):
+            async for event in _stream_llm(model, soul, history, tools, thinking_on):
                 await ws.send_json(event)
 
                 if event["type"] == "token":
@@ -211,8 +217,18 @@ async def _resolve_model(db: AsyncSession) -> str:
     return runtime.model_for("primary")
 
 
+def _chat_tools() -> list[dict]:
+    """Real skill definitions for the chat, from the live registry (built at app startup)."""
+    from littleman.skills.registry import get_registry
+
+    try:
+        return get_registry().get_definitions()
+    except RuntimeError:
+        return build_tool_definitions()
+
+
 async def _stream_llm(
-    model: str, soul: str, history: list[dict], tools: list[dict]
+    model: str, soul: str, history: list[dict], tools: list[dict], thinking: bool = False
 ) -> AsyncIterator[dict]:
     messages = [{"role": "system", "content": soul}] + history
 
@@ -228,9 +244,13 @@ async def _stream_llm(
     if tools:
         kwargs["tools"] = tools
 
-    # Enable extended thinking for Anthropic models
-    if model.startswith("anthropic/"):
-        kwargs["thinking"] = {"type": "enabled", "budget_tokens": 5000}
+    # Thinking mode: enable the model's native reasoning where supported.
+    if thinking:
+        if model.startswith("anthropic/"):
+            kwargs["thinking"] = {"type": "enabled", "budget_tokens": 5000}
+        else:
+            # OpenAI-compatible reasoning models (Kimi k2.x, o-series, …).
+            kwargs["reasoning_effort"] = "medium"
 
     response = await litellm.acompletion(**kwargs)
 

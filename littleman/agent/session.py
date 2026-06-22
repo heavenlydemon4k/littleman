@@ -161,6 +161,22 @@ async def _finish(
     )
     db.add(row)
     await db.commit()
+
+    # Narrate this run into the Main session so it is visible in the chat list.
+    from littleman.agent.mainlog import log_main
+
+    trigger = "autonomous wake" if heartbeat_id else "manual run"
+    focus = (directive_payload or {}).get("primary_focus", "")
+    narration = (
+        f"**{(directive_payload or {}).get('session_type', 'SESSION')}** · {trigger}\n\n"
+        + (f"Focus: {focus}\n\n" if focus else "")
+        + f"{summary}"
+    )
+    try:
+        await log_main(db, narration)
+    except Exception:  # noqa: BLE001 — narration must never fail a session
+        pass
+
     return {
         "session_id": session_id,
         "summary": summary,

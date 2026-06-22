@@ -13,6 +13,11 @@ from littleman.db.connection import init_db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    # Build the skill registry once so /agent/skills and chat share the real capability list.
+    from littleman.db.connection import AsyncSessionLocal
+    from littleman.skills.registry import build_registry
+
+    build_registry(db_session_factory=AsyncSessionLocal)
     yield
 
 

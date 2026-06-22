@@ -113,9 +113,14 @@ export function useChat(sessionId: string | null) {
   }, [subscribe, sessionId]);
 
   const sendMessage = useCallback(
-    (content: string) => {
+    (content: string, opts?: { thinking?: boolean; skills?: boolean }) => {
       if (!content.trim() || streaming) return;
-      send({ type: "user_message", content });
+      send({
+        type: "user_message",
+        content,
+        thinking: opts?.thinking ?? false,
+        skills: opts?.skills ?? true,
+      });
     },
     [send, streaming]
   );

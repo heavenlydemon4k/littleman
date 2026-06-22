@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 
+interface Conn { ok: boolean; detail: string }
+
 interface AgentStatus {
   initialised: boolean;
   wallet_balance_usdc: number;
@@ -13,6 +15,8 @@ interface AgentStatus {
   open_positions: number;
   open_exposure_usdc: number;
   circuit_breaker_active: boolean;
+  balance_is_simulated: boolean;
+  connections: { llm: Conn; polymarket_wallet: Conn; search: Conn };
   next_heartbeat: { fire_at: string; reason: string; session_type: string } | null;
   last_session: { summary: string; started_at: string } | null;
 }
@@ -33,6 +37,7 @@ interface Session {
   research_calls: number;
   heartbeats_created: number;
   started_at: string | null;
+  directive: { session_type?: string; primary_focus?: string; financial_context?: string } | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -60,6 +65,7 @@ export function AgentPage() {
   const [focus, setFocus] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -225,26 +231,44 @@ export function AgentPage() {
 
         {/* Status cards */}
         {status && (
-          <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Stat icon={Wallet} label="Wallet" value={`$${status.wallet_balance_usdc.toFixed(2)}`} />
-            <Stat
-              icon={TrendingUp}
-              label="Total P&L"
-              value={`${status.total_pnl >= 0 ? "+" : ""}$${status.total_pnl.toFixed(2)}`}
-              tone={status.total_pnl >= 0 ? "pos" : "neg"}
-            />
-            <Stat
-              icon={Activity}
-              label="Exposure"
-              value={`$${status.open_exposure_usdc.toFixed(2)} (${status.open_positions})`}
-            />
-            <Stat
-              icon={ShieldAlert}
-              label="Circuit breaker"
-              value={status.circuit_breaker_active ? "TRIPPED" : "clear"}
-              tone={status.circuit_breaker_active ? "neg" : "pos"}
-            />
-          </div>
+          <>
+            <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Stat
+                icon={Wallet}
+                label={status.balance_is_simulated ? "Balance (sim)" : "Wallet"}
+                value={`$${status.wallet_balance_usdc.toFixed(2)}`}
+              />
+              <Stat
+                icon={TrendingUp}
+                label="Total P&L"
+                value={`${status.total_pnl >= 0 ? "+" : ""}$${status.total_pnl.toFixed(2)}`}
+                tone={status.total_pnl >= 0 ? "pos" : "neg"}
+              />
+              <Stat
+                icon={Activity}
+                label="Exposure"
+                value={`$${status.open_exposure_usdc.toFixed(2)} (${status.open_positions})`}
+              />
+              <Stat
+                icon={ShieldAlert}
+                label="Circuit breaker"
+                value={status.circuit_breaker_active ? "TRIPPED" : "clear"}
+                tone={status.circuit_breaker_active ? "neg" : "pos"}
+              />
+            </div>
+
+            {/* Connection checks */}
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              <ConnChip label="LLM" conn={status.connections.llm} />
+              <ConnChip label="Wallet" conn={status.connections.polymarket_wallet} />
+              <ConnChip label="Search" conn={status.connections.search} />
+              {status.balance_is_simulated && (
+                <span className="text-[11px] text-amber-400/80">
+                  balance is the simulated budget — no live Polymarket wallet connected
+                </span>
+              )}
+            </div>
+          </>
         )}
 
         {/* Next heartbeat */}
@@ -281,16 +305,36 @@ export function AgentPage() {
             ))}
           </Panel>
 
-          {/* Session history */}
+          {/* Session history — click a row to expand its directive */}
           <Panel title="Sessions" icon={Activity}>
             {sessions.length === 0 && <Empty>No sessions run yet.</Empty>}
             {sessions.map((s) => (
               <div key={s.id} className="border-b border-surface-3 py-2 last:border-0">
-                <p className="text-xs text-white">{s.outcome_summary || "(no summary)"}</p>
-                <p className="font-mono text-[10px] text-muted/70">
-                  {fmt(s.started_at)} · {s.bets_placed} bets · {s.research_calls} research ·{" "}
-                  {s.heartbeats_created} scheduled
-                </p>
+                <button
+                  onClick={() => setExpanded(expanded === s.id ? null : s.id)}
+                  className="w-full text-left"
+                >
+                  <p className="text-xs text-white hover:text-blue-300 transition-colors">
+                    {s.outcome_summary || "(no summary)"}
+                  </p>
+                  <p className="font-mono text-[10px] text-muted/70">
+                    {fmt(s.started_at)} · {s.bets_placed} bets · {s.research_calls} research ·{" "}
+                    {s.heartbeats_created} scheduled
+                  </p>
+                </button>
+                {expanded === s.id && s.directive && (
+                  <div className="mt-2 rounded-lg border border-surface-3 bg-surface-0 p-2 text-[11px]">
+                    <p className="text-blue-300">{s.directive.session_type}</p>
+                    {s.directive.primary_focus && (
+                      <p className="mt-1 text-muted">
+                        <span className="text-white">Focus:</span> {s.directive.primary_focus}
+                      </p>
+                    )}
+                    {s.directive.financial_context && (
+                      <p className="mt-1 text-muted">{s.directive.financial_context}</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </Panel>
@@ -369,6 +413,21 @@ function Panel({ title, icon: Icon, children }: { title: string; icon: typeof Cl
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="py-4 text-center text-xs text-muted">{children}</p>;
+}
+
+function ConnChip({ label, conn }: { label: string; conn: { ok: boolean; detail: string } }) {
+  return (
+    <span
+      title={conn.detail}
+      className={clsx(
+        "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]",
+        conn.ok ? "border-green-500/30 text-green-400" : "border-surface-4 text-muted"
+      )}
+    >
+      <span className={clsx("h-1.5 w-1.5 rounded-full", conn.ok ? "bg-green-400" : "bg-surface-4")} />
+      {label}: {conn.ok ? "connected" : "off"}
+    </span>
+  );
 }
 
 function fmt(iso: string | null): string {

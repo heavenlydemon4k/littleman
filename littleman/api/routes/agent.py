@@ -23,6 +23,9 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 @router.get("/status")
 async def status(db: AsyncSession = Depends(get_db)):
+    from littleman.config import settings as cfg
+    from littleman.llm import runtime
+
     wm = await WorldModelManager(db).load()
     scheduled = await db.execute(
         select(Heartbeat).where(Heartbeat.status == "SCHEDULED").order_by(Heartbeat.fire_at)
@@ -32,6 +35,27 @@ async def status(db: AsyncSession = Depends(get_db)):
         select(AgentSession).order_by(desc(AgentSession.started_at)).limit(1)
     )
     last = last_session.scalar_one_or_none()
+
+    rt = runtime.active()
+    # Real connection checks — report what is actually configured, not assumptions.
+    wallet_connected = bool(cfg.polymarket_wallet_address)
+    connections = {
+        "llm": {
+            "ok": rt["mode"] == "fake" or bool(rt.get("api_key")),
+            "detail": "fake mode (no API)" if rt["mode"] == "fake"
+            else (f"{rt['primary_model']}" if rt.get("api_key") else "no API key set"),
+        },
+        "polymarket_wallet": {
+            "ok": wallet_connected,
+            "detail": cfg.polymarket_wallet_address if wallet_connected
+            else "not configured — balance is the simulated budget, no live wallet",
+        },
+        "search": {
+            "ok": bool(cfg.search_api_key),
+            "detail": "configured" if cfg.search_api_key else "not set — web_search disabled",
+        },
+    }
+
     return {
         "initialised": construct.is_initialised(),
         "wallet_balance_usdc": wm.wallet_balance_usdc,
@@ -40,6 +64,8 @@ async def status(db: AsyncSession = Depends(get_db)):
         "open_positions": len(wm.open_positions),
         "open_exposure_usdc": wm.open_exposure_usdc(),
         "circuit_breaker_active": wm.circuit_breaker_active,
+        "balance_is_simulated": not wallet_connected,
+        "connections": connections,
         "next_heartbeat": {
             "fire_at": next_hb.fire_at.isoformat() if next_hb else None,
             "reason": next_hb.reason if next_hb else None,
@@ -50,6 +76,50 @@ async def status(db: AsyncSession = Depends(get_db)):
             "started_at": last.started_at.isoformat() if last and last.started_at else None,
         } if last else None,
     }
+
+
+@router.get("/sessions/{session_id}")
+async def session_detail(session_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AgentSession).where(AgentSession.id == session_id))
+    s = result.scalar_one_or_none()
+    if not s:
+        return {"error": "not found"}
+    # The heartbeat that drove it, if any.
+    hb = None
+    if s.heartbeat_id:
+        hbr = await db.execute(select(Heartbeat).where(Heartbeat.id == s.heartbeat_id))
+        h = hbr.scalar_one_or_none()
+        if h:
+            hb = {"reason": h.reason, "session_type": h.session_type, "context": h.context}
+    return {
+        "id": s.id,
+        "directive": s.directive,
+        "bets_placed": s.bets_placed,
+        "research_calls": s.research_calls,
+        "heartbeats_created": s.heartbeats_created,
+        "started_at": s.started_at.isoformat() if s.started_at else None,
+        "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+        "outcome_summary": s.outcome_summary,
+        "heartbeat": hb,
+    }
+
+
+@router.get("/skills")
+async def skills():
+    """The agent's real capability list, with availability gating."""
+    from littleman.skills.registry import get_registry
+
+    try:
+        reg = get_registry()
+    except RuntimeError:
+        from littleman.db.connection import AsyncSessionLocal
+        from littleman.skills.registry import build_registry
+
+        reg = build_registry(db_session_factory=AsyncSessionLocal)
+    return [
+        {"name": s.name, "description": s.description, "cost": s.cost, "available": s.available}
+        for s in reg._skills.values()  # noqa: SLF001 — internal read for the UI
+    ]
 
 
 @router.get("/heartbeats")
