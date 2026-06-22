@@ -48,7 +48,9 @@ export function useWebSocket(sessionId: string | null) {
 
   const subscribe = useCallback((fn: (e: WsEvent) => void) => {
     listeners.current.add(fn);
-    return () => listeners.current.delete(fn);
+    return () => {
+      listeners.current.delete(fn);
+    };
   }, []);
 
   return { status, send, subscribe, reconnect: connect };

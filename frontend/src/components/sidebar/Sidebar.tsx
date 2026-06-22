@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { Plus, Trash2, MessageSquare, Settings, FolderOpen, Bot } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Plus, Trash2, MessageSquare, Settings, FolderOpen, Bot, Activity } from "lucide-react";
 import clsx from "clsx";
 import type { ChatSession } from "../../types";
 
 export function Sidebar() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
 
   const loadSessions = () =>
@@ -40,6 +41,22 @@ export function Sidebar() {
       <div className="flex items-center gap-2 border-b border-border px-4 py-4">
         <Bot size={18} className="text-blue-400" />
         <span className="font-mono font-semibold text-white">littleman</span>
+      </div>
+
+      {/* Agent dashboard link */}
+      <div className="px-2 pt-2">
+        <Link
+          to="/agent"
+          className={clsx(
+            "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
+            location.pathname.startsWith("/agent")
+              ? "bg-surface-3 text-white"
+              : "text-muted hover:bg-surface-2 hover:text-white"
+          )}
+        >
+          <Activity size={15} className="text-blue-400" />
+          Agent
+        </Link>
       </div>
 
       {/* New chat */}

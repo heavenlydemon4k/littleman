@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from littleman.api.routes import chat, settings, workspace
+from littleman.api.routes import agent, chat, settings, workspace
 from littleman.db.connection import init_db
 
 
@@ -29,6 +29,12 @@ app.add_middleware(
 app.include_router(chat.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(workspace.router, prefix="/api")
+app.include_router(agent.router, prefix="/api")
+
+
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
 
 dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if dist.exists():

@@ -3,6 +3,7 @@ import { Sidebar } from "./components/sidebar/Sidebar";
 import { ChatPage } from "./pages/ChatPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
+import { AgentPage } from "./pages/AgentPage";
 
 export default function App() {
   return (
@@ -11,7 +12,8 @@ export default function App() {
         <Sidebar />
         <main className="flex flex-1 flex-col overflow-hidden">
           <Routes>
-            <Route path="/" element={<Navigate to="/chat" replace />} />
+            <Route path="/" element={<Navigate to="/agent" replace />} />
+            <Route path="/agent" element={<AgentPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:sessionId" element={<ChatPage />} />
             <Route path="/settings" element={<SettingsPage />} />
