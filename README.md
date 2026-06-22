@@ -1,38 +1,52 @@
 # littleman
 
-An autonomous agent for systematic prediction market trading on Polymarket. Designed to operate continuously without ongoing human direction — the user sets a budget and a goal, and the agent plans, researches, bets, monitors, and compounds results on its own schedule.
+An **LLM-native autonomous agent platform**. The LLM is the director — it forms its own intent,
+schedules its own future work, and maintains explicit models of itself and its situation, so it
+can run continuously without a human deciding the next step. The human provides identity and
+limits; the agent provides the direction.
+
+In the spirit of [OpenClaw](https://github.com/openclaw/openclaw), but where OpenClaw's
+heartbeat is a static human-written checklist, littleman's heartbeats are **dynamic and
+self-authored** — the agent writes, amends, and chains its own future activations.
+
+**Polymarket trading is the first application, not the product.** An application is just a
+`SOUL.md` (prime directive + domain knowledge), a skill pack, and optional domain config —
+swap those three and the same platform becomes a research assistant, an ops monitor, or a
+content pipeline. See [ADR 0002](docs/adr/0002-littleman-is-a-platform.md) and
+[`docs/META.md`](docs/META.md).
 
 ---
 
-## What this is
+## What the platform gives you
 
-Littleman is a self-directing AI agent with a specific domain: Polymarket prediction markets. It does not require a human to decide what to research, when to act, or when to check results. It determines those things itself through a planning loop that runs at the start of every active session and produces a concrete schedule of future work.
+- **Self-prompting cognition** — a meta layer reads the agent's own workspace, synthesises the
+  situation, and generates the directive that drives the turn. This replaces the human
+  meta-cognition that normally writes each prompt.
+- **Self-scheduling** — the agent authors its own heartbeats (when to wake, why, with what
+  context) and chains them across time. No fixed cron cadence.
+- **Mental Construct** — self-authored, inspectable markdown documents (`PRIORITIES`,
+  `MACRO_PLAN`, `SELF`, `DIRECTIVE`, `REFLECTION`) that are the agent's runtime cognition.
+- **Skill registry** — typed, gated capabilities the agent discovers via its self-model;
+  unavailable skills (missing keys) are hidden from the model automatically.
+- **Main session** — every autonomous or manual run narrates itself into the agent's own chat
+  context, visible alongside ordinary user↔LLM chats.
+- **Safe by default** — runs are manual from the UI unless an explicit **autonomous** toggle is
+  on; hard limits (for trading: position/exposure/drawdown) are enforced in code, not prompts.
+- **Model-agnostic** — Kimi/Moonshot, Anthropic, OpenAI, OpenRouter, or local Ollama via
+  LiteLLM; the active model is editable live in the UI.
 
-The agent's output is not text or summaries. Its output is placed bets, updated positions, a maintained portfolio, and a continuous heartbeat schedule that keeps the cycle running.
-
-Inspired by [OpenClaw](https://github.com/openclaw/openclaw), adopting its workspace-first configuration pattern, model-agnostic provider layer, and skills architecture — and extending its static heartbeat concept into a dynamic, agent-authored scheduling system.
-
----
-
-## Core properties
-
-- **Self-scheduling** — the agent writes its own future activation times (heartbeats) based on market close times, research windows, and result availability. No fixed cron cadence.
-- **Context-carrying wakeups** — each heartbeat stores the specific context that triggered it. The agent re-hydrates from this context on wake, not from scratch.
-- **Hierarchical task decomposition** — goals decompose into strategies, strategies into concrete tasks, tasks into subtasks. The agent maintains and modifies this tree throughout operation.
-- **Baked-in domain model** — knowledge of Polymarket mechanics, topic categories, resolution criteria, and edge theory is embedded in `workspace/SOUL.md`, not retrieved at runtime.
-- **Closed observation loop** — every bet is logged with the agent's stated probability estimate. Resolved bets feed back into calibration statistics by category.
-- **Hard budget controls** — user-set limits on position size, total exposure, and drawdown are enforced in code, not prompt instructions.
-- **Model-agnostic** — runs on local models (Ollama) or cloud (Anthropic, OpenAI) via LiteLLM. Switch providers by changing a `.env` variable.
+The flagship application — Polymarket trading — adds market scanning, calibrated probability
+estimation, Kelly sizing, a deterministic risk governor, and a closed observation loop.
 
 ---
 
 ## Stack
 
-- **Python 3.12+** with [uv](https://github.com/astral-sh/uv) for dependency management
-- **LiteLLM** for LLM provider abstraction (local Ollama or cloud Claude/GPT)
-- **SQLite** for all persistence (heartbeats, positions, world model, knowledge base)
-- **Alembic** for schema migrations
-- **httpx** for HTTP, **playwright** for JS-heavy web research
+- **Python 3.12+** (runs on 3.11), venv-isolated
+- **LiteLLM** for LLM provider abstraction (Kimi/Anthropic/OpenAI/OpenRouter/Ollama)
+- **SQLite** + aiosqlite (WAL) for all persistence
+- **FastAPI** backend + **React/TypeScript** frontend (chat, agent dashboard, workspace editor, settings)
+- **httpx** for HTTP, **playwright** (optional) for JS-heavy web research
 
 ---
 
@@ -53,8 +67,13 @@ make scheduler           # leave running; fires sessions when heartbeats are due
 
 ## Documentation
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — full system design: all layers, the heartbeat cascade, data model, risk management, design decisions
-- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — project structure, stack rationale, workflow, testing conventions
+- [`docs/META.md`](docs/META.md) — the canonical architectural meta: identity, mental workspace, primitives, turn cycle (tracks built vs planned)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — full system design: all layers, the heartbeat cascade, data model, risk management
+- [`docs/OPENCLAW_COMPARISON.md`](docs/OPENCLAW_COMPARISON.md) — measured against OpenClaw, with what was adopted
+- [`docs/applications/polymarket.md`](docs/applications/polymarket.md) — the Polymarket application + live-trading integration plan
+- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — project structure, stack rationale, workflow, testing
+- [`docs/adr/`](docs/adr/) — architecture decision records (serial execution; platform vs application)
+- [`docs/GITHUB_PUSH_PLAN.md`](docs/GITHUB_PUSH_PLAN.md) — secret-hygiene checklist before pushing
 
 ---
 
@@ -78,10 +97,16 @@ against one consistent view.
 
 ## Status
 
-Core agent implemented and unit-tested (31 tests passing). The full planning cycle runs:
-First Light → situation synthesis → directive → strategy/task planning → risk-gated execution
-→ world-model update → self-scheduled heartbeats. Live Polymarket order signing is the
-remaining stub (intent is recorded and risk-checked; wallet wiring is the next step).
+The platform runs end-to-end against a live LLM (verified on Kimi/Moonshot): First Light →
+situation → directive → strategy/task planning → risk-gated execution → world-model update →
+self-scheduled heartbeats, all visible in the UI. **51 tests passing.**
 
-Runs in a project venv: `make install` then `python -m littleman boot` to bootstrap, then
-`python -m littleman scheduler` to run autonomously. `make api` + `make ui` for the chat UI.
+The flagship Polymarket application does live market **reads** today; live order **signing** is
+the remaining piece — bets are sized, risk-checked, recorded, and logged, but not yet posted
+on-chain. The integration plan is in [`docs/applications/polymarket.md`](docs/applications/polymarket.md).
+
+```bash
+python -m venv .venv && .venv/Scripts/python -m pip install -e .   # or: make install
+.venv/Scripts/python -m uvicorn littleman.api.app:app --port 8000  # serves UI + API
+# open http://localhost:8000 → Agent tab. Autonomous is OFF by default; click Run to drive a turn.
+```

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Workspace
     workspace_dir: Path = Path("./workspace")
 
+    # The active application running on the platform (a SOUL.md + skill pack defines it).
+    active_application: str = "Polymarket trading"
+
     # Polymarket
     polymarket_api_key: str = ""
     polymarket_wallet_address: str = ""

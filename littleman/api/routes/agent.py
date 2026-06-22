@@ -58,6 +58,7 @@ async def status(db: AsyncSession = Depends(get_db)):
 
     return {
         "initialised": construct.is_initialised(),
+        "application": cfg.active_application,
         "wallet_balance_usdc": wm.wallet_balance_usdc,
         "available_balance_usdc": wm.available_balance_usdc,
         "total_pnl": wm.total_pnl,

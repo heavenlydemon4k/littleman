@@ -40,7 +40,10 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex items-center gap-2 border-b border-border px-4 py-4">
         <Bot size={18} className="text-blue-400" />
-        <span className="font-mono font-semibold text-white">littleman</span>
+        <div className="flex flex-col leading-none">
+          <span className="font-mono font-semibold text-white">littleman</span>
+          <span className="mt-0.5 text-[10px] text-muted">agent platform</span>
+        </div>
       </div>
 
       {/* Agent dashboard link */}

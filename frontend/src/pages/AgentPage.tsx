@@ -9,6 +9,7 @@ interface Conn { ok: boolean; detail: string }
 
 interface AgentStatus {
   initialised: boolean;
+  application: string;
   wallet_balance_usdc: number;
   available_balance_usdc: number;
   total_pnl: number;
@@ -151,6 +152,11 @@ export function AgentPage() {
           <div className="flex items-center gap-2">
             <Activity size={18} className="text-blue-400" />
             <h1 className="font-mono text-lg font-semibold text-white">Agent</h1>
+            {status?.application && (
+              <span className="rounded bg-surface-3 px-2 py-0.5 text-xs text-muted">
+                app: <span className="text-blue-300">{status.application}</span>
+              </span>
+            )}
             {status && !status.initialised && (
               <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">
                 not bootstrapped
@@ -229,9 +235,12 @@ export function AgentPage() {
           </div>
         )}
 
-        {/* Status cards */}
+        {/* Status cards — the active application's view */}
         {status && (
           <>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-muted/70">
+              {status.application} · application state
+            </p>
             <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
               <Stat
                 icon={Wallet}
