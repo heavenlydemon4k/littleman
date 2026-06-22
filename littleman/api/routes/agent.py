@@ -39,6 +39,7 @@ async def status(db: AsyncSession = Depends(get_db)):
     rt = runtime.active()
     # Real connection checks — report what is actually configured, not assumptions.
     wallet_connected = bool(cfg.polymarket_wallet_address)
+    reconciled = wm.wallet_reconciled
     connections = {
         "llm": {
             "ok": rt["mode"] == "fake" or bool(rt.get("api_key")),
@@ -47,7 +48,10 @@ async def status(db: AsyncSession = Depends(get_db)):
         },
         "polymarket_wallet": {
             "ok": wallet_connected,
-            "detail": cfg.polymarket_wallet_address if wallet_connected
+            "detail": (
+                f"{cfg.polymarket_wallet_address}"
+                + (" (reconciled)" if reconciled else " — configured; click Reconcile to read live balance")
+            ) if wallet_connected
             else "not configured — balance is the simulated budget, no live wallet",
         },
         "search": {
@@ -65,7 +69,8 @@ async def status(db: AsyncSession = Depends(get_db)):
         "open_positions": len(wm.open_positions),
         "open_exposure_usdc": wm.open_exposure_usdc(),
         "circuit_breaker_active": wm.circuit_breaker_active,
-        "balance_is_simulated": not wallet_connected,
+        "balance_is_simulated": not reconciled,
+        "last_reconcile_at": wm.last_reconcile_at,
         "connections": connections,
         "next_heartbeat": {
             "fire_at": next_hb.fire_at.isoformat() if next_hb else None,
@@ -231,6 +236,15 @@ async def run_once(body: dict | None = None):
         manual_context["focus"] = body["focus"]
     result = await run_session(lock_timeout=5.0, manual_context=manual_context)
     return {"ok": True, "result": result}
+
+
+@router.post("/reconcile")
+async def reconcile(db: AsyncSession = Depends(get_db)):
+    """Read the configured wallet's real USDC balance + positions from Polygon/Polymarket and
+    reconcile them into the world model. Read-only — cannot move funds."""
+    from littleman.skills.polymarket_client import reconcile as do_reconcile
+
+    return await do_reconcile(db)
 
 
 @router.post("/run-due")

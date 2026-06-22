@@ -100,6 +100,18 @@ async def _run_pipeline(
     db: AsyncSession, session_id: str, heartbeat_id: str | None, heartbeat_context: dict
 ) -> dict:
     wm = WorldModelManager(db)
+
+    # Reconcile real wallet balance/positions from chain before reasoning (best-effort).
+    from littleman.config import settings as _cfg
+
+    if _cfg.polymarket_wallet_address:
+        try:
+            from littleman.skills.polymarket_client import reconcile as _reconcile
+
+            await _reconcile(db)
+        except Exception:  # noqa: BLE001 — reconcile is best-effort; never block a session
+            pass
+
     state = await wm.load()
 
     # 3-4. Situation -> directive (directive engine writes DIRECTIVE.md).

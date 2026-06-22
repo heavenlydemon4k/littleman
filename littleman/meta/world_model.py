@@ -47,6 +47,8 @@ class WorldModelState(BaseModel):
     session_start_balance: float = 0.0
     peak_balance: float = 0.0
     circuit_breaker_active: bool = False
+    wallet_reconciled: bool = False
+    last_reconcile_at: str | None = None
     updated_at: str | None = None
 
     def open_exposure_usdc(self) -> float:
@@ -165,6 +167,8 @@ class WorldModelManager:
             session_start_balance=extended.get("session_start_balance", balance),
             peak_balance=peak,
             circuit_breaker_active=extended.get("circuit_breaker_active", False),
+            wallet_reconciled=extended.get("wallet_reconciled", False),
+            last_reconcile_at=extended.get("last_reconcile_at"),
             updated_at=row.updated_at.isoformat() if row.updated_at else None,
         )
 
@@ -180,6 +184,8 @@ class WorldModelManager:
             "session_start_balance": state.session_start_balance,
             "peak_balance": state.peak_balance,
             "circuit_breaker_active": state.circuit_breaker_active,
+            "wallet_reconciled": state.wallet_reconciled,
+            "last_reconcile_at": state.last_reconcile_at,
         }
 
         if row is None:

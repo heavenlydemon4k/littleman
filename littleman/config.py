@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     search_api_key: str = ""
     search_endpoint: str = "https://api.tavily.com/search"
 
+    # Polygon chain reads (no key needed for balance/position reconciliation).
+    # publicnode is keyless and reliable; polygon-rpc.com now returns 401.
+    polygon_rpc_url: str = "https://polygon-bor-rpc.publicnode.com"
+    usdc_contract: str = "0x2791Bca1f2de4661eD88A30C99A7a9449Aa84174"  # USDC.e on Polygon
+    polymarket_data_api: str = "https://data-api.polymarket.com"
+
     # Budget / risk
     budget_usdc: float = 500.0
     max_position_pct: float = 0.20

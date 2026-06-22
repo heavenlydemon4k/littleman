@@ -167,6 +167,9 @@ export function AgentPage() {
             <Btn onClick={() => action("/api/agent/boot", "boot")} busy={busy === "boot"} icon={Power}>
               First Light
             </Btn>
+            <Btn onClick={() => action("/api/agent/reconcile", "reconcile")} busy={busy === "reconcile"} icon={Wallet}>
+              Reconcile
+            </Btn>
             <Btn onClick={() => action("/api/agent/run-due", "due")} busy={busy === "due"} icon={Clock}>
               Fire due
             </Btn>
