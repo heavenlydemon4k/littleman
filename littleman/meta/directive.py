@@ -15,7 +15,7 @@ from typing import Any
 
 from littleman.llm.complete import complete_json
 from littleman.llm.client import load_soul
-from littleman.llm.prompts import DIRECTIVE_SYSTEM, DIRECTIVE_USER
+from littleman.llm.prompts import DIRECTIVE_SYSTEM, DIRECTIVE_USER, render
 from littleman.meta import construct
 
 
@@ -58,7 +58,8 @@ async def generate(situation_report: dict[str, Any]) -> dict[str, Any]:
         include=("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md")
     )
 
-    user = DIRECTIVE_USER.format(
+    user = render(
+        DIRECTIVE_USER,
         situation_report_json=json.dumps(situation_report, indent=2),
         soul_excerpt=_soul_excerpt(),
     )

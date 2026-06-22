@@ -7,10 +7,15 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # LLM
+    llm_mode: str = "real"  # "real" routes to litellm; "fake" uses the scripted provider
     llm_primary_model: str = "anthropic/claude-sonnet-4-6"
     llm_secondary_model: str = "anthropic/claude-haiku-4-5-20251001"
     anthropic_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"
+    # Generic OpenAI-compatible endpoint override (Kimi/Moonshot, OpenRouter, vLLM, …).
+    # When set, the real provider passes these to litellm for openai/* model strings.
+    llm_api_base: str = ""
+    llm_api_key: str = ""
 
     # Database
     database_url: str = "sqlite:///./littleman.db"

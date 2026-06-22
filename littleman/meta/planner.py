@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from littleman.config import settings
 from littleman.heartbeat import store
 from littleman.llm.complete import complete_json
-from littleman.llm.prompts import HEARTBEAT_PLAN_SYSTEM, HEARTBEAT_PLAN_USER
+from littleman.llm.prompts import HEARTBEAT_PLAN_SYSTEM, HEARTBEAT_PLAN_USER, render
 from littleman.meta.world_model import WorldModelState
 
 _CATEGORY_LEAD = {"politics": 2.0, "sports": 0.5, "crypto": 0.25}
@@ -111,11 +111,13 @@ async def plan_and_schedule(
     if use_llm_refinement and state.next_heartbeats:
         try:
             scheduled = [h.model_dump() for h in state.next_heartbeats]
-            system = HEARTBEAT_PLAN_SYSTEM.format(
+            system = render(
+                HEARTBEAT_PLAN_SYSTEM,
                 idle_hours=settings.idle_heartbeat_interval_hours,
                 now=now.isoformat(),
             )
-            user = HEARTBEAT_PLAN_USER.format(
+            user = render(
+                HEARTBEAT_PLAN_USER,
                 session_summary=session_summary,
                 positions_json=json.dumps([p.model_dump() for p in state.open_positions]),
                 watched_markets_json=json.dumps(state.watched_markets),

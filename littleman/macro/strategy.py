@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from littleman.llm.complete import complete_json
-from littleman.llm.prompts import STRATEGY_SYSTEM
+from littleman.llm.prompts import STRATEGY_SYSTEM, render
 from littleman.macro import goal_tree
 from littleman.skills.registry import get_registry
 
@@ -22,7 +22,8 @@ async def plan(db: AsyncSession, directive: dict[str, Any]) -> dict[str, Any]:
     tree = await goal_tree.get_tree_as_dict(db)
     registry = get_registry()
 
-    system = STRATEGY_SYSTEM.format(
+    system = render(
+        STRATEGY_SYSTEM,
         skills_summary=registry.summary_text(),
         directive_json=json.dumps(directive, indent=2),
         goal_tree_json=json.dumps(tree, indent=2),

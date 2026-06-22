@@ -10,7 +10,7 @@ import json
 from typing import Any
 
 from littleman.llm.complete import complete_json
-from littleman.llm.prompts import SITUATION_REPORT_PROMPT
+from littleman.llm.prompts import SITUATION_REPORT_PROMPT, render
 from littleman.meta.world_model import WorldModelState
 
 
@@ -41,7 +41,7 @@ async def synthesize(
     heartbeat_context: dict | None = None,
 ) -> dict[str, Any]:
     payload = _world_model_payload(state, heartbeat_context)
-    prompt = SITUATION_REPORT_PROMPT.format(world_model_json=json.dumps(payload, indent=2))
+    prompt = render(SITUATION_REPORT_PROMPT, world_model_json=json.dumps(payload, indent=2))
     # The situation report is descriptive; the secondary model tier is adequate.
     report = await complete_json(prompt, "Produce the situation report now.", tier="secondary")
     return report

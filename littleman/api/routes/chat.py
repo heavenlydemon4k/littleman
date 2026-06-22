@@ -214,10 +214,14 @@ async def _stream_llm(
 ) -> AsyncIterator[dict]:
     messages = [{"role": "system", "content": soul}] + history
 
+    from littleman.llm.provider import completion_kwargs
+
     kwargs: dict = {
         "model": model,
         "messages": messages,
         "stream": True,
+        # Pick up OpenAI-compatible endpoint/credentials (Kimi/Moonshot, OpenRouter, …).
+        **completion_kwargs(),
     }
     if tools:
         kwargs["tools"] = tools

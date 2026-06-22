@@ -12,9 +12,8 @@ import json
 import re
 from typing import Any
 
-import litellm
-
 from littleman.config import settings
+from littleman.llm.provider import get_provider
 
 
 def _model_for(tier: str) -> str:
@@ -49,7 +48,8 @@ async def complete_text(
     tier: str = "primary",
     **kwargs: Any,
 ) -> str:
-    response = await litellm.acompletion(
+    provider = get_provider()
+    return await provider.complete(
         model=_model_for(tier),
         messages=[
             {"role": "system", "content": system},
@@ -57,7 +57,6 @@ async def complete_text(
         ],
         **kwargs,
     )
-    return response.choices[0].message.content or ""
 
 
 async def complete_json(

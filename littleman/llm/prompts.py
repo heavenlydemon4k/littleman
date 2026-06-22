@@ -1,3 +1,16 @@
+def render(template: str, **values: object) -> str:
+    """Brace-safe template fill.
+
+    Prompt templates embed literal JSON-schema braces, so str.format() cannot be used
+    (it treats `{...}` as fields). This only substitutes the explicit `{name}` placeholders
+    we pass, leaving all other braces untouched.
+    """
+    out = template
+    for key, value in values.items():
+        out = out.replace("{" + key + "}", str(value))
+    return out
+
+
 SITUATION_REPORT_PROMPT = """
 You are reading the agent's world model and producing a structured situation report.
 Output valid JSON matching the schema below. Do not include markdown fences.

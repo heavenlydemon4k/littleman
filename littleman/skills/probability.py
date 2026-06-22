@@ -11,7 +11,7 @@ from typing import Callable
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from littleman.llm.complete import complete_json
-from littleman.llm.prompts import PROBABILITY_SYSTEM, PROBABILITY_USER
+from littleman.llm.prompts import PROBABILITY_SYSTEM, PROBABILITY_USER, render
 
 
 def make_probability_skill(db_factory: Callable[[], AsyncSession]) -> list[dict]:
@@ -23,7 +23,8 @@ def make_probability_skill(db_factory: Callable[[], AsyncSession]) -> list[dict]
         market_price: float | None = None,
         comparable_base_rates: str | None = None,
     ) -> dict:
-        user = PROBABILITY_USER.format(
+        user = render(
+            PROBABILITY_USER,
             market_title=market_title or market_id,
             market_id=market_id,
             resolution_criteria=resolution_criteria or "(not provided)",
