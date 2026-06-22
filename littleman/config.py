@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     polymarket_wallet_address: str = ""
     polymarket_private_key: str = ""
 
+    # Web search (optional; Tavily-compatible). If unset, search degrades gracefully.
+    search_api_key: str = ""
+    search_endpoint: str = "https://api.tavily.com/search"
+
     # Budget / risk
     budget_usdc: float = 500.0
     max_position_pct: float = 0.20

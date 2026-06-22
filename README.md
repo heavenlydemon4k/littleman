@@ -58,6 +58,30 @@ make scheduler           # leave running; fires sessions when heartbeats are due
 
 ---
 
+## Cognitive layer (Mental Construct)
+
+Beyond the static `SOUL.md`, the agent maintains a set of self-authored markdown documents in
+`workspace/construct/` that form its runtime cognition — created from templates at **First
+Light** and owned by the agent thereafter:
+
+- `PRIORITIES.md` — ranked priority stack, rewritten each session
+- `MACRO_PLAN.md` — strategic campaigns and horizons
+- `SELF.md` — runtime self-model: capabilities, calibration, learned patterns
+- `DIRECTIVE.md` — the current session's intent (written by the directive engine)
+- `REFLECTION.md` — append-only learning log
+
+These are loaded into the system prompt each session and editable from the workspace UI. See
+[`docs/adr/0001-mental-construct-not-generational-state.md`](docs/adr/0001-mental-construct-not-generational-state.md)
+for the decision to adopt this cognitive layer while keeping execution serial (not the
+generational/parallel-context model some designs propose) — capital operations must evaluate
+against one consistent view.
+
 ## Status
 
-Pre-implementation. Documentation and workspace scaffold in place. Implementation begins with the database schema and heartbeat store.
+Core agent implemented and unit-tested (31 tests passing). The full planning cycle runs:
+First Light → situation synthesis → directive → strategy/task planning → risk-gated execution
+→ world-model update → self-scheduled heartbeats. Live Polymarket order signing is the
+remaining stub (intent is recorded and risk-checked; wallet wiring is the next step).
+
+Runs in a project venv: `make install` then `python -m littleman boot` to bootstrap, then
+`python -m littleman scheduler` to run autonomously. `make api` + `make ui` for the chat UI.
