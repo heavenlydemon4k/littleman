@@ -94,6 +94,19 @@ def _deterministic_plan(state: WorldModelState, now: datetime) -> list[dict[str,
     return specs
 
 
+def _dedupe_key(context: dict[str, Any], session_type: str) -> str:
+    """A stable key identifying a heartbeat's trigger, for deduplication."""
+    trigger = context.get("primary_trigger", session_type)
+    if trigger == "position_resolution":
+        ids = context.get("positions_to_check") or []
+        return f"resolve:{','.join(sorted(ids))}"
+    if trigger == "market_close_approaching":
+        return f"research:{context.get('market_id')}"
+    if trigger == "idle_maintenance":
+        return "idle"
+    return f"{trigger}:{session_type}"
+
+
 async def plan_and_schedule(
     db: AsyncSession,
     state: WorldModelState,
@@ -103,6 +116,12 @@ async def plan_and_schedule(
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     specs = _deterministic_plan(state, now)
+
+    # Dedupe against already-scheduled heartbeats so the cascade does not pile up duplicate
+    # idle / resolution / research wakes for the same trigger.
+    existing = await store.list_scheduled(db)
+    existing_keys = {_dedupe_key(h.context or {}, h.session_type) for h in existing}
+    specs = [s for s in specs if _dedupe_key(s["context"], s["session_type"]) not in existing_keys]
 
     cancel: list[dict[str, Any]] = []
     amend: list[dict[str, Any]] = []
