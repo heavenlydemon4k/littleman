@@ -1,13 +1,25 @@
-.PHONY: install migrate run scheduler session test lint format clean
+.PHONY: install migrate run api ui scheduler session test lint format clean
 
 install:
 	uv sync --all-extras
+	cd frontend && npm install
 
 migrate:
 	uv run alembic upgrade head
 
+# Start everything: API + frontend dev server in parallel
 run:
-	uv run python -m littleman
+	make -j2 api ui
+
+api:
+	uv run uvicorn littleman.api.app:app --host 0.0.0.0 --port 8000 --reload
+
+ui:
+	cd frontend && npm run dev
+
+# Build frontend for production (served by the FastAPI static mount)
+build-ui:
+	cd frontend && npm run build
 
 scheduler:
 	uv run python -m littleman.heartbeat.scheduler
