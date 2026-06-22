@@ -28,12 +28,12 @@ async def test_reconcile_updates_world_model(db, monkeypatch):
     async def fake_positions(addr):
         return [{"currentValue": 10.0}, {"currentValue": 5.5}]
 
-    monkeypatch.setattr(pc, "get_usdc_balance", fake_balance)
+    monkeypatch.setattr(pc, "get_pusd_balance", fake_balance)
     monkeypatch.setattr(pc, "get_positions", fake_positions)
 
     result = await pc.reconcile(db)
     assert result["reconciled"] is True
-    assert result["usdc_balance"] == 123.45
+    assert result["pusd_balance"] == 123.45
     assert result["positions_value"] == 15.5
     assert result["total_value"] == 138.95
 
@@ -60,7 +60,7 @@ async def test_reconcile_balance_failure_is_graceful(db, monkeypatch):
     async def boom(addr):
         raise RuntimeError("rpc down")
 
-    monkeypatch.setattr(pc, "get_usdc_balance", boom)
+    monkeypatch.setattr(pc, "get_pusd_balance", boom)
     result = await pc.reconcile(db)
     assert result["reconciled"] is False
     assert "balance read failed" in result["reason"]

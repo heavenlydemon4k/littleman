@@ -19,17 +19,16 @@ from littleman.config import settings
 
 _TIMEOUT = 20.0
 _BALANCE_OF_SELECTOR = "0x70a08231"  # keccak256("balanceOf(address)")[:4]
-_USDC_DECIMALS = 6
+_PUSD_DECIMALS = 6
 
 
-async def get_usdc_balance(address: str) -> float:
-    """Read the wallet's USDC.e balance on Polygon via a public RPC eth_call (balanceOf)."""
+async def _erc20_balance(address: str, contract: str, decimals: int) -> float:
     data = _BALANCE_OF_SELECTOR + address.lower().replace("0x", "").rjust(64, "0")
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
         "method": "eth_call",
-        "params": [{"to": settings.usdc_contract, "data": data}, "latest"],
+        "params": [{"to": contract, "data": data}, "latest"],
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(settings.polygon_rpc_url, json=payload, timeout=_TIMEOUT)
@@ -37,8 +36,15 @@ async def get_usdc_balance(address: str) -> float:
         body = resp.json()
     if "error" in body:
         raise RuntimeError(f"Polygon RPC error: {body['error']}")
-    raw_hex = body.get("result", "0x0")
-    return int(raw_hex, 16) / (10 ** _USDC_DECIMALS)
+    return int(body.get("result", "0x0"), 16) / (10 ** decimals)
+
+
+async def get_pusd_balance(address: str) -> float:
+    """Read the wallet's pUSD balance — the actual trading collateral since 2026-04-28.
+
+    pUSD is an ERC-20 backed 1:1 by USDC; this is the spendable betting balance.
+    """
+    return await _erc20_balance(address, settings.pusd_contract, _PUSD_DECIMALS)
 
 
 async def get_positions(address: str) -> list[dict[str, Any]]:
@@ -80,7 +86,7 @@ async def reconcile(db) -> dict[str, Any]:
         return {"reconciled": False, "reason": "no POLYMARKET_WALLET_ADDRESS configured"}
 
     try:
-        usdc = await get_usdc_balance(address)
+        pusd = await get_pusd_balance(address)
     except (httpx.HTTPError, RuntimeError, ValueError) as e:
         return {"reconciled": False, "reason": f"balance read failed: {e}"}
 
@@ -90,13 +96,13 @@ async def reconcile(db) -> dict[str, Any]:
         positions = []  # positions are best-effort; balance is the critical figure
 
     positions_value = round(sum(_position_value(p) for p in positions), 2)
-    total = round(usdc + positions_value, 2)
+    total = round(pusd + positions_value, 2)
 
     from datetime import datetime, timezone
 
     wm = WorldModelManager(db)
     state = await wm.load()
-    state.available_balance_usdc = round(usdc, 2)
+    state.available_balance_usdc = round(pusd, 2)
     state.wallet_balance_usdc = total
     if total > state.peak_balance:
         state.peak_balance = total
@@ -107,7 +113,7 @@ async def reconcile(db) -> dict[str, Any]:
     return {
         "reconciled": True,
         "address": address,
-        "usdc_balance": round(usdc, 2),
+        "pusd_balance": round(pusd, 2),
         "positions_count": len(positions),
         "positions_value": positions_value,
         "total_value": total,

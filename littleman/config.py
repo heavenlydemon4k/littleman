@@ -38,7 +38,10 @@ class Settings(BaseSettings):
     # Polygon chain reads (no key needed for balance/position reconciliation).
     # publicnode is keyless and reliable; polygon-rpc.com now returns 401.
     polygon_rpc_url: str = "https://polygon-bor-rpc.publicnode.com"
-    usdc_contract: str = "0x2791Bca1f2de4661eD88A30C99A7a9449Aa84174"  # USDC.e on Polygon
+    # pUSD (Polymarket USD) is the trading collateral since the 2026-04-28 exchange upgrade —
+    # an ERC-20 backed 1:1 by USDC. This is the balance that matters for betting, NOT USDC.e.
+    pusd_contract: str = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+    usdc_contract: str = "0x2791Bca1f2de4661eD88A30C99A7a9449Aa84174"  # USDC.e (legacy reference)
     polymarket_data_api: str = "https://data-api.polymarket.com"
 
     # Budget / risk

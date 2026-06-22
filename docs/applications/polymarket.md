@@ -14,8 +14,17 @@ Three surfaces (see [Polymarket docs](https://docs.polymarket.com/)):
 | **CLOB** | `https://clob.polymarket.com` | L1 + L2 for writes | order book, prices, place/cancel orders, positions |
 | **Data API** | `https://data-api.polymarket.com` | none | historical trades, holders |
 
-All contracts (CTF Exchange, Conditional Token Framework, USDC.e) run on **Polygon PoS
-(chain id 137)**; gas is ~$0.002/tx.
+All contracts run on **Polygon PoS (chain id 137)**; gas is ~$0.002/tx.
+
+### Collateral is pUSD, not USDC.e (2026-04-28 exchange upgrade)
+
+Since the April 2026 exchange upgrade, the trading collateral is **pUSD** (Polymarket USD), an
+ERC-20 backed 1:1 by USDC, contract `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB` (6 decimals).
+The spendable betting balance is the wallet's **pUSD** balance — reading USDC.e gives 0 even
+for a funded account. `skills/polymarket_client.py` reads pUSD. Depositing USDC wraps to pUSD
+1:1 via the CollateralOnramp; unwrapping is fee-free.
+
+Funding a wallet needs **pUSD** for orders and **POL** for gas (EOA / signature type 0 only).
 
 Our existing `skills/polymarket.py` already uses Gamma + CLOB read endpoints (`scan_markets`,
 `get_market`, `get_orderbook`, `check_resolution`) — no auth needed. Those stay.
@@ -48,17 +57,24 @@ with a `funder` address.
 
 ## 3. SDK choice
 
-The official `py-clob-client` is **archived**; Polymarket points to the unified
-[`py-sdk`](https://github.com/Polymarket/py-sdk). Plan:
+The quickstart targets the **v2** clients (the original `py-clob-client` is archived):
 
-- **Primary:** integrate `py-sdk` (current, maintained).
-- **Fallback/reference:** `py-clob-client` API shape is well documented and stable:
-  ```python
-  client = ClobClient(host, key=PRIVATE_KEY, chain_id=137, signature_type=3, funder=FUNDER)
-  client.set_api_creds(client.create_or_derive_api_creds())
-  ```
+- **Python:** `pip install py-clob-client-v2`
+- TypeScript: `@polymarket/clob-client-v2 viem` · Rust: `polymarket_client_sdk_v2`
 
-Both wrap order signing + CTF interactions, so we do not hand-roll EIP-712.
+Flow (from the quickstart):
+```python
+# 1. temp client with the signing key → derive L1→L2 creds
+api_creds = temp_client.create_or_derive_api_key()
+# 2. full client with signer + creds → create_order / post_order
+```
+
+**Signing wallet vs funder address:** the *signing wallet* (its private key) derives credentials
+and authorises orders; the *funder address* holds the pUSD + POL. The address you configure for
+reads (`POLYMARKET_WALLET_ADDRESS`) is the **funder** that holds the balance. For signing we will
+additionally need the signing wallet's key and the right `signature_type`.
+
+The SDK wraps order signing + CTF interactions, so we do not hand-roll EIP-712.
 
 ## 4. Pre-trade requirements (one-time, per wallet)
 
