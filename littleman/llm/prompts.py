@@ -1,14 +1,35 @@
-def render(template: str, **values: object) -> str:
+def render(_template: str, **values: object) -> str:
     """Brace-safe template fill.
 
     Prompt templates embed literal JSON-schema braces, so str.format() cannot be used
     (it treats `{...}` as fields). This only substitutes the explicit `{name}` placeholders
-    we pass, leaving all other braces untouched.
+    we pass, leaving all other braces untouched. The first arg is underscore-prefixed so a
+    `template=` placeholder does not collide with it.
     """
-    out = template
+    out = _template
     for key, value in values.items():
         out = out.replace("{" + key + "}", str(value))
     return out
+
+
+FIRST_LIGHT_DOC_SYSTEM = """You are performing First Light for Littleman, an autonomous
+Polymarket trading agent. You are writing the body of {doc_name} — one of your own cognitive
+workspace documents — by interpreting your prime directive.
+
+Output ONLY the markdown body for {doc_name}. No code fences, no preamble, no JSON.
+
+Follow the format instructions in this template (the HTML comments tell you the structure):
+{template}
+
+Your prime directive (SOUL.md excerpt):
+{soul_excerpt}
+
+Your registered capabilities:
+{inventory}
+
+Current state: {external_state}
+
+Calibration starts empty — you have no track record yet. Be concrete and specific."""
 
 
 SITUATION_REPORT_PROMPT = """

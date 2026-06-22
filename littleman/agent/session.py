@@ -37,18 +37,25 @@ from littleman.tasks.tree import TaskTree
 
 
 async def run_session(
-    heartbeat_id: str | None = None, boot: bool = False, lock_timeout: float = 0.0
+    heartbeat_id: str | None = None,
+    boot: bool = False,
+    lock_timeout: float = 0.0,
+    manual_context: dict | None = None,
 ) -> dict:
-    """Run one session. If heartbeat_id is given, that heartbeat's context drives it.
+    """Run one session. If heartbeat_id is given, that heartbeat's context drives it; a
+    manual_context (from the UI 'run a brief directive session' input) seeds the situation
+    for an ad-hoc run.
 
     Guarded by a cross-process SessionLock so capital is always evaluated against one
     consistent view, even if the scheduler and a manual run overlap (ADR 0001).
     """
     async with SessionLock(timeout=lock_timeout):
-        return await _run_session_locked(heartbeat_id, boot)
+        return await _run_session_locked(heartbeat_id, boot, manual_context or {})
 
 
-async def _run_session_locked(heartbeat_id: str | None, boot: bool) -> dict:
+async def _run_session_locked(
+    heartbeat_id: str | None, boot: bool, manual_context: dict
+) -> dict:
     session_id = str(uuid.uuid4())
     started = datetime.now(timezone.utc)
 
@@ -56,7 +63,7 @@ async def _run_session_locked(heartbeat_id: str | None, boot: bool) -> dict:
     build_registry(db_session_factory=AsyncSessionLocal)
 
     async with AsyncSessionLocal() as db:
-        heartbeat_context: dict = {}
+        heartbeat_context: dict = dict(manual_context)
         if heartbeat_id:
             hb = await store.get_heartbeat(db, heartbeat_id)
             if hb:

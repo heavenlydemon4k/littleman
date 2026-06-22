@@ -206,7 +206,9 @@ async def _resolve_model(db: AsyncSession) -> str:
     cfg = result.scalar_one_or_none()
     if cfg:
         return cfg.model
-    return settings.llm_primary_model
+    from littleman.llm import runtime
+
+    return runtime.model_for("primary")
 
 
 async def _stream_llm(

@@ -22,32 +22,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from littleman.config import settings
 from littleman.heartbeat import store
 from littleman.llm.client import load_soul
-from littleman.llm.complete import complete_json
+from littleman.llm.complete import complete_text
+from littleman.llm.prompts import FIRST_LIGHT_DOC_SYSTEM, render
 from littleman.meta import construct
 from littleman.meta.world_model import WorldModelManager
 from littleman.skills.registry import get_registry
 
-FIRST_LIGHT_SYSTEM = """You are performing First Light for Littleman, an autonomous Polymarket
-trading agent. You are populating your own cognitive scaffolding from your prime directive
-(SOUL.md), your capability inventory, and your current external state.
+# Documents First Light authors via plain-text generation, with the budget for each.
+_FL_DOCS = ("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md")
 
-Output valid JSON (no markdown fences):
-{
-  "priorities_md": string,   // full markdown body for PRIORITIES.md (ranked, with a Current Summary)
-  "macro_plan_md": string,   // full markdown body for MACRO_PLAN.md (initial campaigns)
-  "self_md": string,         // full markdown body for SELF.md (capabilities, limitations, empty calibration)
-  "bootstrap_directive": {
-    "session_type": "FULL_CYCLE",
-    "primary_focus": string,
-    "financial_context": string,
-    "opportunity_notes": [string],
-    "constraint_notes": [string]
-  }
-}
 
-Honour the format instructions embedded as HTML comments in each template. Be concrete: use
-the actual budget, the actual skills, and the actual constraints. Calibration starts empty —
-you have no track record yet."""
+def _strip_fences(text: str) -> str:
+    t = text.strip()
+    if t.startswith("```"):
+        # Drop an opening ```lang line and a trailing ``` if present.
+        lines = t.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        t = "\n".join(lines)
+    return t.strip()
 
 
 async def run(db: AsyncSession, force: bool = False) -> dict:
@@ -72,25 +67,29 @@ async def run(db: AsyncSession, force: bool = False) -> dict:
         "open_positions": len(state.open_positions),
         "budget_usdc": settings.budget_usdc,
     }
+    soul_excerpt = load_soul()[: settings.bootstrap_max_chars]
 
-    # 4. Synthesize the initial construct from SOUL.md + inventory + external state.
-    user = (
-        f"SOUL.md (prime directive and domain knowledge):\n{load_soul()}\n\n"
-        f"PRIORITIES.md template:\n{construct.read_template('PRIORITIES.md')}\n\n"
-        f"MACRO_PLAN.md template:\n{construct.read_template('MACRO_PLAN.md')}\n\n"
-        f"SELF.md template:\n{construct.read_template('SELF.md')}\n\n"
-        f"Capability inventory (your registered skills):\n{capability_inventory}\n\n"
-        f"Current external state:\n{json.dumps(external_state, indent=2)}\n\n"
-        "Produce the First Light JSON now."
-    )
-    result = await complete_json(FIRST_LIGHT_SYSTEM, user, tier="primary")
+    # 4. Author each construct document as plain markdown (no fragile mega-JSON).
+    for doc in _FL_DOCS:
+        system = render(
+            FIRST_LIGHT_DOC_SYSTEM,
+            doc_name=doc,
+            template=construct.read_template(doc),
+            soul_excerpt=soul_excerpt,
+            inventory=capability_inventory,
+            external_state=json.dumps(external_state),
+        )
+        body = await complete_text(system, f"Write the {doc} body now.", tier="primary")
+        construct.write_doc(doc, _strip_fences(body))
 
-    # 5. Write the populated construct documents.
-    construct.write_doc("PRIORITIES.md", result.get("priorities_md", ""))
-    construct.write_doc("MACRO_PLAN.md", result.get("macro_plan_md", ""))
-    construct.write_doc("SELF.md", result.get("self_md", ""))
-
-    bootstrap_directive = result.get("bootstrap_directive", {})
+    # 5. Bootstrap directive is deterministic — no LLM call needed, no parse risk.
+    bootstrap_directive = {
+        "session_type": "FULL_CYCLE",
+        "primary_focus": "Establish bearings: survey open markets and form an initial strategy",
+        "financial_context": f"Fresh budget of {settings.budget_usdc:.2f} USDC, no open positions.",
+        "opportunity_notes": ["Identify markets with researchable edge and clear resolution"],
+        "constraint_notes": ["Operate within configured risk limits", "Require a real edge before betting"],
+    }
     from littleman.meta.directive import _render_directive_md
 
     construct.write_doc("DIRECTIVE.md", _render_directive_md(bootstrap_directive))

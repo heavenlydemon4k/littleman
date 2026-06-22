@@ -147,18 +147,25 @@ async def boot():
 
 
 @router.post("/run")
-async def run_once():
-    """Trigger a single session immediately (independent of the heartbeat schedule)."""
+async def run_once(body: dict | None = None):
+    """Trigger a single session immediately (independent of the heartbeat schedule).
+
+    An optional {"focus": "..."} seeds an ad-hoc directive — a brief directive session driven
+    from the UI.
+    """
     from littleman.agent.session import run_session
 
-    result = await run_session(lock_timeout=5.0)
+    manual_context: dict = {"primary_trigger": "manual_run"}
+    if body and body.get("focus"):
+        manual_context["focus"] = body["focus"]
+    result = await run_session(lock_timeout=5.0, manual_context=manual_context)
     return {"ok": True, "result": result}
 
 
 @router.post("/run-due")
 async def run_due():
-    """Fire any heartbeats that are currently due (manual scheduler tick)."""
+    """Fire any heartbeats that are currently due (manual scheduler tick — always allowed)."""
     from littleman.heartbeat.scheduler import _tick
 
-    fired = await _tick()
+    fired = await _tick(force=True)
     return {"ok": True, "fired": fired}

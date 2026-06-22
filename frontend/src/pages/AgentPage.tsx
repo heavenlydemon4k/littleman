@@ -43,31 +43,78 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "text-muted",
 };
 
+interface Runtime {
+  mode: string;
+  primary_model: string;
+  secondary_model: string;
+  api_key_set: boolean;
+  autonomous: boolean;
+}
+
 export function AgentPage() {
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [heartbeats, setHeartbeats] = useState<Heartbeat[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [construct, setConstruct] = useState<Record<string, string>>({});
+  const [runtime, setRuntime] = useState<Runtime | null>(null);
+  const [focus, setFocus] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
     try {
-      const [s, h, se, c] = await Promise.all([
+      const [s, h, se, c, rt] = await Promise.all([
         fetch("/api/agent/status").then((r) => r.json()),
         fetch("/api/agent/heartbeats?limit=20").then((r) => r.json()),
         fetch("/api/agent/sessions?limit=15").then((r) => r.json()),
         fetch("/api/agent/construct").then((r) => r.json()),
+        fetch("/api/settings/runtime").then((r) => r.json()),
       ]);
       setStatus(s);
       setHeartbeats(h);
       setSessions(se);
       setConstruct(c.documents || {});
+      setRuntime(rt);
       setError("");
     } catch (e) {
       setError(String(e));
     }
   }, []);
+
+  const toggleAutonomous = async () => {
+    if (!runtime) return;
+    setBusy("autonomous");
+    try {
+      const r = await fetch("/api/settings/runtime", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autonomous: !runtime.autonomous }),
+      });
+      setRuntime(await r.json());
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const runWithFocus = async () => {
+    setBusy("run");
+    setError("");
+    try {
+      const r = await fetch("/api/agent/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(focus.trim() ? { focus: focus.trim() } : {}),
+      });
+      const data = await r.json();
+      if (!r.ok) setError(data.detail || "run failed");
+      setFocus("");
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   useEffect(() => {
     refresh();
@@ -108,9 +155,6 @@ export function AgentPage() {
             <Btn onClick={() => action("/api/agent/boot", "boot")} busy={busy === "boot"} icon={Power}>
               First Light
             </Btn>
-            <Btn onClick={() => action("/api/agent/run", "run")} busy={busy === "run"} icon={Play}>
-              Run once
-            </Btn>
             <Btn onClick={() => action("/api/agent/run-due", "due")} busy={busy === "due"} icon={Clock}>
               Fire due
             </Btn>
@@ -122,6 +166,55 @@ export function AgentPage() {
               <RefreshCw size={14} />
             </button>
           </div>
+        </div>
+
+        {/* Runtime + autonomy bar */}
+        {runtime && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-1 px-4 py-3">
+            <span className="font-mono text-xs text-muted">
+              model: <span className="text-blue-300">{runtime.primary_model}</span>
+              <span className="mx-2 text-surface-4">·</span>
+              mode: <span className={runtime.mode === "real" ? "text-green-400" : "text-amber-400"}>{runtime.mode}</span>
+              <span className="mx-2 text-surface-4">·</span>
+              key: <span className={runtime.api_key_set ? "text-green-400" : "text-red-400"}>{runtime.api_key_set ? "set" : "missing"}</span>
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-muted">Autonomous scheduler</span>
+              <button
+                onClick={toggleAutonomous}
+                disabled={busy === "autonomous"}
+                className={clsx(
+                  "relative h-5 w-10 rounded-full transition-colors",
+                  runtime.autonomous ? "bg-green-600" : "bg-surface-4"
+                )}
+                title={runtime.autonomous ? "Agent wakes itself on schedule" : "Manual only — no auto runs"}
+              >
+                <span
+                  className={clsx(
+                    "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+                    runtime.autonomous ? "translate-x-5" : "translate-x-0.5"
+                  )}
+                />
+              </button>
+              <span className={clsx("font-mono text-xs", runtime.autonomous ? "text-green-400" : "text-muted")}>
+                {runtime.autonomous ? "ON" : "OFF"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Brief directive session */}
+        <div className="mb-5 flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2">
+          <input
+            value={focus}
+            onChange={(e) => setFocus(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && runWithFocus()}
+            placeholder="Run a session with an optional focus, e.g. 'survey politics markets closing this week'…"
+            className="flex-1 bg-transparent text-sm text-white placeholder-muted outline-none"
+          />
+          <Btn onClick={runWithFocus} busy={busy === "run"} icon={Play}>
+            Run session
+          </Btn>
         </div>
 
         {error && (

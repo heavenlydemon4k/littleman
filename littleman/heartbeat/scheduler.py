@@ -20,7 +20,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("scheduler")
 
 
-async def _tick() -> int:
+async def _tick(force: bool = False) -> int:
+    """Fire due heartbeats. The background loop passes force=False so it only fires when
+    autonomous mode is on; manual triggers (UI 'Fire due') pass force=True."""
+    from littleman.llm import runtime
+
+    if not force and not runtime.is_autonomous():
+        return 0
+
     async with AsyncSessionLocal() as db:
         due = await store.get_due_heartbeats(db)
 
@@ -48,8 +55,14 @@ async def _tick() -> int:
 
 
 async def run_forever() -> None:
+    from littleman.llm import runtime
+
     await init_db()
-    log.info("scheduler started; poll interval %ss", settings.heartbeat_poll_interval_seconds)
+    log.info(
+        "scheduler started; poll %ss; autonomous=%s (heartbeats fire only when autonomous=on)",
+        settings.heartbeat_poll_interval_seconds,
+        runtime.is_autonomous(),
+    )
     while True:
         try:
             await _tick()

@@ -22,15 +22,13 @@ from littleman.config import settings
 def completion_kwargs() -> dict[str, Any]:
     """Endpoint/credential kwargs shared by streaming and non-streaming callers.
 
-    When an OpenAI-compatible base URL is configured (e.g. Kimi/Moonshot), pass it plus the
-    key to litellm. Otherwise rely on provider-native env vars (ANTHROPIC_API_KEY, etc.).
+    Sourced from the live runtime config (UI-editable), which defaults to .env. When an
+    OpenAI-compatible base URL is configured (e.g. Kimi/Moonshot), pass it plus the key to
+    litellm. Otherwise rely on provider-native env vars (ANTHROPIC_API_KEY, etc.).
     """
-    kwargs: dict[str, Any] = {}
-    if settings.llm_api_base:
-        kwargs["api_base"] = settings.llm_api_base
-    if settings.llm_api_key:
-        kwargs["api_key"] = settings.llm_api_key
-    return kwargs
+    from littleman.llm import runtime
+
+    return runtime.completion_kwargs()
 
 
 class LLMProvider(Protocol):
@@ -132,19 +130,9 @@ def default_handlers() -> dict[str, Callable[[str, str], str]]:
     def heartbeat_plan(_s: str, _u: str) -> str:
         return json.dumps({"create": [], "amend": [], "cancel": []})
 
-    def first_light(_s: str, _u: str) -> str:
-        return json.dumps({
-            "priorities_md": "## Current Summary\n- Establish initial market survey\n\n"
-                             "## P1: Find first researchable edge\n**Why:** No positions yet.\n",
-            "macro_plan_md": "## Current Summary\n- Build a politics-markets campaign\n",
-            "self_md": "## Capabilities\n- Skills loaded from registry.\n\n## Calibration\n- None yet.\n",
-            "bootstrap_directive": {
-                "session_type": "FULL_CYCLE",
-                "primary_focus": "Survey markets and establish bearings",
-                "financial_context": "500 USDC budget, no positions.",
-                "opportunity_notes": ["politics markets"], "constraint_notes": ["risk limits"],
-            },
-        })
+    def first_light_doc(_s: str, _u: str) -> str:
+        # First Light now authors each construct doc as plain markdown.
+        return "## Current Summary\n- Establish bearings and survey markets\n\n## P1: First edge\n**Why:** No positions yet.\n"
 
     # Markers are unique phrases from each system prompt (see llm/prompts.py + plan/turns).
     return {
@@ -155,27 +143,41 @@ def default_handlers() -> dict[str, Callable[[str, str], str]]:
         "You are the strategy planner": strategy,
         "structured probability estimation": probability,
         "You are the self-scheduler": heartbeat_plan,
-        "You are performing First Light": first_light,
+        "writing the body of": first_light_doc,
     }
 
 
 # ── Provider selection ────────────────────────────────────────────────────────
 
-_provider: LLMProvider | None = None
+_override: LLMProvider | None = None
+_real: RealProvider | None = None
+_fake: ScriptedProvider | None = None
 
 
 def get_provider() -> LLMProvider:
-    global _provider
-    if _provider is not None:
-        return _provider
-    if settings.llm_mode == "fake":
-        _provider = ScriptedProvider()
-    else:
-        _provider = RealProvider()
-    return _provider
+    """Return the provider for the live runtime mode (real|fake), honouring test overrides."""
+    global _real, _fake
+    if _override is not None:
+        return _override
+
+    from littleman.llm import runtime
+
+    mode = runtime.active().get("mode", "real")
+    if mode == "fake":
+        _fake = _fake or ScriptedProvider()
+        return _fake
+    _real = _real or RealProvider()
+    return _real
 
 
 def set_provider(provider: LLMProvider | None) -> None:
-    """Override the active provider (tests). Pass None to reset to settings-based selection."""
-    global _provider
-    _provider = provider
+    """Override the active provider (tests). Pass None to reset to runtime-based selection."""
+    global _override
+    _override = provider
+
+
+def reset_cache() -> None:
+    """Drop cached real/fake providers so a runtime config change is picked up."""
+    global _real, _fake
+    _real = None
+    _fake = None
