@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from littleman.agent.lock import SessionLock
 from littleman.db.connection import AsyncSessionLocal, init_db
 from littleman.db.models import AgentSession
 from littleman.heartbeat import store
@@ -35,8 +36,19 @@ from littleman.tasks.executor import ExecutionContext, run_tree
 from littleman.tasks.tree import TaskTree
 
 
-async def run_session(heartbeat_id: str | None = None, boot: bool = False) -> dict:
-    """Run one session. If heartbeat_id is given, that heartbeat's context drives it."""
+async def run_session(
+    heartbeat_id: str | None = None, boot: bool = False, lock_timeout: float = 0.0
+) -> dict:
+    """Run one session. If heartbeat_id is given, that heartbeat's context drives it.
+
+    Guarded by a cross-process SessionLock so capital is always evaluated against one
+    consistent view, even if the scheduler and a manual run overlap (ADR 0001).
+    """
+    async with SessionLock(timeout=lock_timeout):
+        return await _run_session_locked(heartbeat_id, boot)
+
+
+async def _run_session_locked(heartbeat_id: str | None, boot: bool) -> dict:
     session_id = str(uuid.uuid4())
     started = datetime.now(timezone.utc)
 

@@ -30,13 +30,18 @@ async def _tick() -> int:
     # Import here to avoid a circular import at module load.
     from littleman.agent.session import run_session
 
+    from littleman.agent.lock import SessionLockBusy
+
     fired = 0
     for hb in due:
         log.info("firing heartbeat %s (%s): %s", hb.id[:8], hb.session_type, hb.reason)
         try:
-            result = await run_session(heartbeat_id=hb.id)
+            # Wait briefly for any manual/overlapping session to finish rather than failing.
+            result = await run_session(heartbeat_id=hb.id, lock_timeout=60.0)
             log.info("session done: %s", result.get("summary"))
             fired += 1
+        except SessionLockBusy:
+            log.warning("heartbeat %s deferred — session lock busy; will retry next tick", hb.id[:8])
         except Exception:  # noqa: BLE001 — one bad session must not stop the scheduler
             log.exception("session for heartbeat %s failed", hb.id[:8])
     return fired

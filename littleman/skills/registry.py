@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
 
@@ -12,6 +11,23 @@ class Skill:
     description: str
     parameters: dict[str, Any]
     cost: str = "LOW"
+    requires: list[str] = field(default_factory=list)
+    available: bool = True
+
+
+def _requirements_met(requires: list[str]) -> bool:
+    """A skill is available only if every required settings field is non-empty.
+
+    Mirrors OpenClaw's skill gating (metadata.openclaw required env/binaries): a skill whose
+    backing credential is missing should not be offered to the model, so the agent's
+    self-model reflects what it can actually do.
+    """
+    from littleman.config import settings
+
+    for field_name in requires:
+        if not getattr(settings, field_name, None):
+            return False
+    return True
 
 
 class SkillRegistry:
@@ -25,22 +41,30 @@ class SkillRegistry:
         description: str,
         parameters: dict[str, Any],
         cost: str = "LOW",
+        requires: list[str] | None = None,
     ) -> None:
+        requires = requires or []
         self._skills[name] = Skill(
             name=name,
             fn=fn,
             description=description,
             parameters=parameters,
             cost=cost,
+            requires=requires,
+            available=_requirements_met(requires),
         )
 
     async def dispatch(self, name: str, args: dict[str, Any]) -> Any:
         skill = self._skills.get(name)
         if not skill:
             raise ValueError(f"Unknown skill: {name!r}. Available: {list(self._skills)}")
+        if not skill.available:
+            raise ValueError(
+                f"Skill {name!r} is unavailable: missing config {skill.requires}"
+            )
         return await skill.fn(**args)
 
-    def get_definitions(self) -> list[dict]:
+    def get_definitions(self, only_available: bool = True) -> list[dict]:
         return [
             {
                 "type": "function",
@@ -51,15 +75,22 @@ class SkillRegistry:
                 },
             }
             for s in self._skills.values()
+            if s.available or not only_available
         ]
 
-    def names(self) -> list[str]:
-        return list(self._skills)
+    def names(self, only_available: bool = True) -> list[str]:
+        return [s.name for s in self._skills.values() if s.available or not only_available]
 
     def summary_text(self) -> str:
+        """Capability inventory for the self-model — flags unavailable skills explicitly."""
         lines = []
         for s in self._skills.values():
-            lines.append(f"- {s.name}: {s.description} [cost: {s.cost}]")
+            if s.available:
+                lines.append(f"- {s.name}: {s.description} [cost: {s.cost}]")
+            else:
+                lines.append(
+                    f"- {s.name}: {s.description} [UNAVAILABLE — needs {', '.join(s.requires)}]"
+                )
         return "\n".join(lines)
 
 

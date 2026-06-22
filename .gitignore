@@ -12,3 +12,8 @@ dist/
 *.egg-info/
 .ruff_cache/
 .pytest_cache/
+
+# Agent runtime state (lock files, etc.) and live construct documents
+workspace/state/
+workspace/construct/*.md
+!workspace/construct/*.template.md

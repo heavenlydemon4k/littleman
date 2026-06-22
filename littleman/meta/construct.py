@@ -29,6 +29,19 @@ APPEND_DOCS = ("REFLECTION.md",)
 ALL_DOCS = OVERWRITE_DOCS + APPEND_DOCS
 
 
+_TRUNC_MARKER = "\n…[truncated]…\n"
+
+
+def _truncate(text: str, limit: int, tail: bool) -> str:
+    """Truncate text to `limit` chars, keeping the head (or tail) and marking the cut."""
+    if len(text) <= limit:
+        return text
+    budget = max(limit - len(_TRUNC_MARKER), 0)
+    if tail:
+        return _TRUNC_MARKER + text[-budget:]
+    return text[:budget] + _TRUNC_MARKER
+
+
 def _construct_dir() -> Path:
     return settings.workspace_dir / "construct"
 
@@ -52,12 +65,24 @@ class Construct:
     directive: str
     reflection: str
 
-    def as_prompt_block(self, include: tuple[str, ...] = ALL_DOCS) -> str:
-        """Render the construct as a block for the system prompt.
+    def as_prompt_block(
+        self,
+        include: tuple[str, ...] = ALL_DOCS,
+        per_doc_max: int | None = None,
+        total_max: int | None = None,
+    ) -> str:
+        """Render the construct as a block for the system prompt, within a char budget.
 
-        `include` selects which documents to embed (e.g. the directive engine does not need
-        the directive that does not exist yet).
+        `include` selects which documents to embed. Each document is capped at `per_doc_max`
+        and the whole block at `total_max` (defaults from settings). REFLECTION.md is
+        append-only and can grow without bound, so it is truncated to its TAIL (most recent
+        entries) rather than its head; other documents keep their head.
         """
+        from littleman.config import settings
+
+        per_doc_max = per_doc_max or settings.bootstrap_max_chars
+        total_max = total_max or settings.bootstrap_total_max_chars
+
         mapping = {
             "PRIORITIES.md": self.priorities,
             "MACRO_PLAN.md": self.macro_plan,
@@ -66,11 +91,23 @@ class Construct:
             "REFLECTION.md": self.reflection,
         }
         parts: list[str] = []
+        used = 0
         for name in include:
             body = (mapping.get(name) or "").strip()
             if not body:
                 continue
-            parts.append(f"===== {name} =====\n{body}")
+            tail = name == "REFLECTION.md"
+            body = _truncate(body, per_doc_max, tail=tail)
+            block = f"===== {name} =====\n{body}"
+            if used + len(block) > total_max:
+                remaining = total_max - used
+                if remaining <= 80:  # not enough room for a meaningful slice
+                    break
+                block = _truncate(block, remaining, tail=False)
+            parts.append(block)
+            used += len(block)
+            if used >= total_max:
+                break
         return "\n\n".join(parts)
 
 

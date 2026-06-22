@@ -19,10 +19,12 @@ from littleman.llm.prompts import DIRECTIVE_SYSTEM, DIRECTIVE_USER
 from littleman.meta import construct
 
 
-def _soul_excerpt(max_chars: int = 4000) -> str:
+def _soul_excerpt(max_chars: int | None = None) -> str:
+    from littleman.config import settings
+
     soul = load_soul()
     # The operating principles live near the top of SOUL.md; an excerpt keeps token cost down.
-    return soul[:max_chars]
+    return soul[: (max_chars or settings.soul_excerpt_max_chars)]
 
 
 def _render_directive_md(directive: dict[str, Any]) -> str:

@@ -42,5 +42,12 @@ class Settings(BaseSettings):
     heartbeat_missed_threshold_minutes: int = 10
     idle_heartbeat_interval_hours: int = 4
 
+    # Context budget for prompt assembly (mirrors OpenClaw bootstrapMaxChars/TotalMaxChars).
+    # Caps how much of SOUL.md + the mental construct is injected so the growing, append-only
+    # REFLECTION.md cannot overflow the model context window.
+    bootstrap_max_chars: int = 20_000          # per document
+    bootstrap_total_max_chars: int = 60_000    # whole construct block
+    soul_excerpt_max_chars: int = 6_000
+
 
 settings = Settings()

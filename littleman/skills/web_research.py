@@ -116,6 +116,7 @@ def make_web_research_skills() -> list[dict]:
                 "required": ["query"],
             },
             "cost": "MEDIUM",
+            "requires": ["search_api_key"],
         },
         {
             "name": "browse_url",
