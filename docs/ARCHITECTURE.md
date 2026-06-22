@@ -4,30 +4,41 @@
 
 1. [Problem Statement](#1-problem-statement)
 2. [Design Thesis](#2-design-thesis)
-3. [System Overview](#3-system-overview)
-4. [The Meta Layer](#4-the-meta-layer)
-   - 4.1 World Model
-   - 4.2 Situation Synthesizer
-   - 4.3 Directive Engine
-   - 4.4 Self-Scheduler
-5. [The Macro Layer](#5-the-macro-layer)
-   - 5.1 Goal Tree
-   - 5.2 Strategy Planner
-   - 5.3 Skill Registry
-   - 5.4 Risk Governor
-6. [The Task Layer](#6-the-task-layer)
-7. [The Execution Layer](#7-the-execution-layer)
-   - 7.1 Web Researcher
-   - 7.2 Polymarket Client
-   - 7.3 Knowledge Base
-   - 7.4 Observation Logger
-8. [The Heartbeat System](#8-the-heartbeat-system)
-   - 8.1 Motivation
-   - 8.2 Heartbeat Records
-   - 8.3 The Scheduler Runtime
-   - 8.4 Cascade Behavior
-   - 8.5 Heartbeat Lifecycle
-9. [The Domain Model](#9-the-domain-model)
+3. [Relationship to OpenClaw](#3-relationship-to-openclaw)
+4. [LLM Provider Strategy](#4-llm-provider-strategy)
+5. [System Overview](#5-system-overview)
+6. [The Meta Layer](#6-the-meta-layer)
+   - 6.1 World Model
+   - 6.2 Situation Synthesizer
+   - 6.3 Directive Engine
+   - 6.4 Self-Scheduler
+7. [The Macro Layer](#7-the-macro-layer)
+   - 7.1 Goal Tree
+   - 7.2 Strategy Planner
+   - 7.3 Skill Registry
+   - 7.4 Risk Governor
+8. [The Task Layer](#8-the-task-layer)
+9. [The Execution Layer](#9-the-execution-layer)
+   - 9.1 Web Researcher
+   - 9.2 Polymarket Client
+   - 9.3 Knowledge Base
+   - 9.4 Observation Logger
+10. [The Heartbeat System](#10-the-heartbeat-system)
+    - 10.1 Motivation
+    - 10.2 Heartbeat Records
+    - 10.3 The Scheduler Runtime
+    - 10.4 Cascade Behavior
+    - 10.5 Heartbeat Lifecycle
+11. [The Domain Model](#11-the-domain-model)
+    - 11.1 Polymarket Mechanics
+    - 11.2 Topic Ontology
+    - 11.3 Edge Theory
+    - 11.4 Wallet and Budget Model
+12. [The Planning Cycle](#12-the-planning-cycle)
+13. [The Observation Loop](#13-the-observation-loop)
+14. [Data Model](#14-data-model)
+15. [Risk Management](#15-risk-management)
+16. [Design Decisions and Tradeoffs](#16-design-decisions-and-tradeoffs)
    - 9.1 Polymarket Mechanics
    - 9.2 Topic Ontology
    - 9.3 Edge Theory
@@ -85,7 +96,140 @@ The heartbeat system replaces fixed scheduling with agent-authored scheduling. T
 
 ---
 
-## 3. System Overview
+## 3. Relationship to OpenClaw
+
+Littleman's architecture is directly inspired by [OpenClaw](https://github.com/openclaw/openclaw), an open-source autonomous agent framework. Understanding the relationship — what we take, what we change, and what we discard — is important context for any contributor.
+
+### What OpenClaw is
+
+OpenClaw is a self-hosted, model-agnostic AI agent runtime. Its architecture is built around five concepts: a **Gateway** that routes messages from external channels, a **Brain** that runs an LLM in a ReAct (Reason + Act) loop, a **Memory** system backed by local Markdown files, a **Skills** system of modular callable capabilities, and a **Heartbeat** that runs the agent on a periodic schedule without user input.
+
+OpenClaw's workspace is a directory of plain files the agent reads on every wake:
+
+| File | Purpose |
+|------|---------|
+| `SOUL.md` | Agent identity, values, and persistent instructions — read on every wake |
+| `HEARTBEAT.md` | Standing checklist of tasks to check on each periodic run |
+| `MEMORY.md` | Persistent facts the agent has accumulated |
+| `AGENTS.md` | Multi-agent coordination rules |
+| `TOOLS.md` | Environment-specific capability configuration |
+
+Its **Lane Queue** system serializes tasks per session to prevent race conditions, with configurable concurrency caps per lane type (main, subagent, cron). Its **provider abstraction** means the agent loop is identical regardless of whether the underlying model is a local Ollama instance or a cloud API — both look like OpenAI-compatible endpoints to the gateway.
+
+### What Littleman adopts from OpenClaw
+
+**Workspace-first configuration.** The agent's identity, mission, and embedded knowledge are defined in files that are read at the start of every session, not hardcoded in source. This makes the agent's behavior transparent and editable without touching code.
+
+**SOUL.md pattern.** Littleman uses a `SOUL.md` file as its primary identity document. Where OpenClaw's `SOUL.md` defines persona and tone, Littleman's defines its domain mission (Polymarket trading), its embedded understanding of prediction markets, its risk philosophy, and its operating constraints. This is read at the start of every heartbeat session before any reasoning begins.
+
+**Skills as discrete registered units.** OpenClaw skills are Markdown instruction files that describe a capability. Littleman's skill registry extends this into typed, callable Python functions with a parallel description layer that is included in the agent's context so it knows what it can do. The concept — modular, named, discoverable capabilities — is the same.
+
+**Model-agnostic provider layer.** OpenClaw treats all LLM providers as interchangeable endpoints. Littleman does the same via LiteLLM (see [Section 4](#4-llm-provider-strategy)).
+
+**ReAct agent loop.** The Reason + Act loop is the correct execution model for an agent that must decide between available skills and re-evaluate after each action. Littleman uses this loop within the task execution phase.
+
+**Memory as layered storage.** OpenClaw uses Markdown files for memory with an FTS index. Littleman uses SQLite as its primary persistence layer with a similar two-tier pattern: structured tables for operational state (positions, heartbeats, world model) and a full-text-searchable knowledge base for accumulated research.
+
+### Where Littleman diverges from OpenClaw
+
+**The heartbeat is dynamic, not static.**
+
+This is the most significant architectural departure. OpenClaw's `HEARTBEAT.md` is a human-authored static checklist. The agent reads it every 30 minutes and executes whatever tasks are listed. The schedule is fixed; the content is fixed; the human wrote it.
+
+In Littleman, the agent writes its own heartbeat records. `HEARTBEAT.md` exists as a schema reference and default fallback, but the live schedule lives in the database as rows the agent creates, modifies, and cancels. Each heartbeat record carries the specific context that triggered it. The timing is derived from market close times and research windows, not a fixed interval. This is the core innovation over OpenClaw's pattern.
+
+**The heartbeat carries intent and context.**
+
+OpenClaw's heartbeat prompt is the same every run: "read HEARTBEAT.md, do what it says." Littleman's heartbeat fires with a `context` blob specifying exactly why this particular run exists — which positions to check, which markets to research, what information was expected. The agent does not re-derive its purpose from scratch; it is handed its purpose by the prior session that scheduled this wake.
+
+**Domain specificity over generality.**
+
+OpenClaw is general-purpose. Its `SOUL.md` can define any persona for any task. Littleman is purpose-built for a single domain: prediction market trading. Its domain knowledge (market mechanics, topic ontology, edge theory, calibration) is embedded in `SOUL.md` and the system prompt, not discovered at runtime. This depth is a deliberate tradeoff of generality for reliability in a specific domain.
+
+**Explicit financial risk layer.**
+
+OpenClaw has no concept of financial constraints. Littleman has a Risk Governor with hard limits that have veto power over all execution, circuit breakers for drawdown events, and position sizing derived from Kelly criterion. These are not prompt-level instructions; they are code-level enforcement.
+
+**Goal tree persistence across sessions.**
+
+OpenClaw's memory is a flat log of accumulated facts. Littleman maintains a hierarchical goal tree — structured as a database, not a Markdown file — that represents active strategies, their rationale, and the positions they have produced. This tree is the primary artifact of the macro layer and persists indefinitely across sessions.
+
+---
+
+## 4. LLM Provider Strategy
+
+Littleman is model-agnostic by design. The choice of underlying LLM affects the quality of reasoning but not the architecture of the system. The provider layer is a thin abstraction that routes LLM calls to whichever backend is configured.
+
+### Abstraction via LiteLLM
+
+All LLM calls in Littleman go through [LiteLLM](https://github.com/BerriAI/litellm), an open-source gateway that exposes a single `completion()` interface regardless of backend. LiteLLM supports Anthropic, OpenAI, Ollama, LM Studio, vLLM, and 100+ other providers. The call site in Littleman code is always:
+
+```python
+from litellm import completion
+
+response = completion(
+    model=settings.llm_model,
+    messages=messages,
+    **settings.llm_kwargs,
+)
+```
+
+The `settings.llm_model` string determines which backend is used. `anthropic/claude-sonnet-4-6` routes to Anthropic's API. `ollama/llama3.2` routes to a local Ollama instance. No other code changes.
+
+### Configuration
+
+All provider config lives in `.env`:
+
+```bash
+# Cloud
+LLM_PROVIDER=anthropic
+LLM_MODEL=anthropic/claude-sonnet-4-6
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Local (Ollama)
+LLM_PROVIDER=ollama
+LLM_MODEL=ollama/llama3.1:8b
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+### Model tiers by task
+
+Not all tasks in Littleman require the same reasoning capability. Using a large cloud model for every operation is expensive and slow. Using an underpowered local model for high-stakes reasoning is risky. The system supports per-task-type model configuration:
+
+| Task Type | Reasoning Demand | Default Tier |
+|-----------|-----------------|--------------|
+| Directive generation | High — synthesizes entire situation into focused intent | Primary model |
+| Strategy planning | High — multi-step reasoning over goal tree | Primary model |
+| Probability estimation | High — evidence weighing, calibration | Primary model |
+| Web research extraction | Medium — structured extraction from text | Secondary model |
+| Heartbeat scheduling | Low — deterministic rules, minimal LLM use | Secondary model or rule-based |
+| Monitor checks | Low — position lookup, comparison | Secondary model |
+
+The `PRIMARY_MODEL` and `SECONDARY_MODEL` env vars allow different models for each tier. In a local-only setup, both can point to the same Ollama model. In a cloud setup, primary might be Claude Sonnet and secondary might be Claude Haiku.
+
+### Local-first operation
+
+Littleman is designed to run fully offline once set up. The requirements for local-only operation:
+- Ollama installed and running
+- A model with sufficient context window (minimum 32k, recommended 64k+) pulled locally
+- Polymarket API access (requires network, but the agent itself runs locally)
+- Web research skills (require network for the research tasks themselves)
+
+The agent process, the scheduler runtime, the database, and all config files run locally. No data is sent to cloud services unless the configured LLM provider is a cloud API.
+
+### Recommended models by use case
+
+| Use case | Recommended local | Recommended cloud |
+|----------|------------------|-------------------|
+| Solo dev, cost-sensitive | `ollama/llama3.1:8b` or `ollama/qwen2.5:14b` | `anthropic/claude-haiku-4-5` |
+| Higher reasoning quality | `ollama/qwen2.5:32b` | `anthropic/claude-sonnet-4-6` |
+| Maximum quality (slower/expensive) | `ollama/llama3.3:70b` | `anthropic/claude-opus-4-8` |
+
+For a personal trading agent managing real capital, the recommendation is to use a capable cloud model for directive generation and strategy planning (the two highest-stakes reasoning tasks) and a local model for routine checks and research extraction. This gives quality where it matters and speed/cost efficiency for routine work.
+
+---
+
+## 5. System Overview
 
 The system consists of five logical layers plus the heartbeat runtime.
 
@@ -126,7 +270,7 @@ Data flows:
 
 ---
 
-## 4. The Meta Layer
+## 6. The Meta Layer
 
 The meta layer runs at the start of every session (every heartbeat wake) and produces the directive that drives the rest of the session. It also runs at the end of every session to plan future heartbeats.
 
@@ -235,7 +379,7 @@ The self-scheduler does not use an LLM call for steps 1-4. These are determinist
 
 ---
 
-## 5. The Macro Layer
+## 7. The Macro Layer
 
 The macro layer receives the directive and produces a concrete plan: specific strategies to pursue, tasks to create, and skills to invoke. It is responsible for the goal tree and for routing work into the task layer.
 
@@ -330,7 +474,7 @@ User-set hard limits cannot be overridden by any agent-generated reasoning. They
 
 ---
 
-## 6. The Task Layer
+## 8. The Task Layer
 
 The task layer is the concrete execution plan for a single session. It decomposes the strategies from the macro layer into a sequenced tree of specific tasks.
 
@@ -354,7 +498,7 @@ The task tree for a session is ephemeral — it is created at session start and 
 
 ---
 
-## 7. The Execution Layer
+## 9. The Execution Layer
 
 The execution layer contains the components that interact with external systems. It does not plan or decide — it executes specific instructions and reports results.
 
@@ -436,7 +580,7 @@ Observation data is the input to calibration. After a meaningful number of resol
 
 ---
 
-## 8. The Heartbeat System
+## 10. The Heartbeat System
 
 ### 8.1 Motivation
 
@@ -572,7 +716,7 @@ A heartbeat transitions:
 
 ---
 
-## 9. The Domain Model
+## 11. The Domain Model
 
 The domain model is embedded knowledge — it is part of the agent's system prompt, not stored in the knowledge base or database. It does not change at runtime. It is the agent's prior knowledge of the domain it is operating in.
 
@@ -637,7 +781,7 @@ All sizing decisions are subject to the risk governor's hard limits regardless o
 
 ---
 
-## 10. The Planning Cycle
+## 12. The Planning Cycle
 
 A complete planning cycle, from heartbeat wake to heartbeat creation:
 
@@ -695,7 +839,7 @@ A complete planning cycle, from heartbeat wake to heartbeat creation:
 
 ---
 
-## 11. The Observation Loop
+## 13. The Observation Loop
 
 The observation loop is the mechanism by which the agent's past performance informs its future behavior. It is not a training loop — it does not modify model weights. It is a calibration loop that modifies the agent's operational parameters and self-assessment.
 
@@ -733,7 +877,7 @@ This is not automated model updating — it is information made available to the
 
 ---
 
-## 12. Data Model
+## 14. Data Model
 
 ### Core tables
 
@@ -846,7 +990,7 @@ CREATE TABLE sessions (
 
 ---
 
-## 13. Risk Management
+## 15. Risk Management
 
 Risk management is enforced at two levels: hard limits and soft constraints.
 
@@ -873,7 +1017,7 @@ Hard limits are checked by the risk governor as a precondition to any EXECUTE ta
 
 ---
 
-## 14. Design Decisions and Tradeoffs
+## 16. Design Decisions and Tradeoffs
 
 **Why is the directive engine an LLM call and not a rule-based system?**
 
