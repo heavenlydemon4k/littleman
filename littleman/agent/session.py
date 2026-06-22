@@ -133,19 +133,30 @@ async def _run_pipeline(
     exec_result = await run_tree(ctx, tree)
 
     # 7. Update world model + append a reflection entry.
+    skills_used = exec_result.get("skills_used", [])
+    failures = exec_result.get("failures", [])
     summary = (
         f"{directive_payload.get('session_type')}: "
         f"{exec_result['bets_placed']} bets, {exec_result['research_calls']} research calls, "
         f"{exec_result['tree']['done']}/{exec_result['tree']['total']} tasks done"
     )
+    if skills_used:
+        summary += f" · skills: {', '.join(sorted(set(skills_used)))}"
+    if failures:
+        summary += f" · {len(failures)} failed"
     state = await wm.load()
     state.last_session_summary = summary
     await wm.save(state)
-    construct.append_reflection(
+    reflection = (
         f"## {datetime.now(timezone.utc).date().isoformat()} — session {session_id[:8]}\n"
         f"**Context:** {directive_payload.get('primary_focus', '')}\n"
         f"**Outcome:** {summary}\n"
     )
+    if failures:
+        reflection += "**Failures:**\n" + "\n".join(
+            f"- {f['task']}: {f['error']}" for f in failures
+        ) + "\n"
+    construct.append_reflection(reflection)
 
     # 8. Self-scheduler plans future heartbeats.
     hb_plan = await planner.plan_and_schedule(

@@ -14,10 +14,11 @@ from typing import Any
 
 import litellm
 
-from littleman.config import settings
+from littleman.llm import runtime
+from littleman.llm.provider import completion_kwargs
 from littleman.skills.registry import SkillRegistry
 
-_MAX_ITERATIONS = 8
+_MAX_ITERATIONS = 6
 
 
 @dataclass
@@ -35,8 +36,9 @@ async def run(
     model: str | None = None,
     max_iterations: int = _MAX_ITERATIONS,
 ) -> LoopResult:
-    model = model or settings.llm_primary_model
+    model = model or runtime.model_for("primary")
     tools = registry.get_definitions()
+    extra = completion_kwargs()  # Kimi/OpenAI-compatible endpoint + key
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
@@ -45,7 +47,9 @@ async def run(
 
     for i in range(max_iterations):
         result.iterations = i + 1
-        response = await litellm.acompletion(model=model, messages=messages, tools=tools)
+        response = await litellm.acompletion(
+            model=model, messages=messages, tools=tools, **extra
+        )
         choice = response.choices[0]
         msg = choice.message
 

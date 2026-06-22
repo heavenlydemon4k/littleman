@@ -112,6 +112,7 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     from littleman.skills.web_research import make_web_research_skills
     from littleman.skills.probability import make_probability_skill
     from littleman.skills.polymarket import make_polymarket_skills
+    from littleman.skills.polymarket_client import make_account_skills
 
     global _registry
     registry = SkillRegistry()
@@ -125,6 +126,8 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     for skill in make_web_research_skills():
         registry.register(**skill)
     for skill in make_polymarket_skills():
+        registry.register(**skill)
+    for skill in make_account_skills():
         registry.register(**skill)
 
     if db_session_factory:

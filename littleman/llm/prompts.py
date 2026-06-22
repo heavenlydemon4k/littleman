@@ -112,7 +112,7 @@ Output valid JSON (no markdown fences):
   ],
   "tasks": [
     {
-      "type": "RESEARCH" | "ANALYSIS" | "DECISION" | "MONITOR" | "RESOLVE",
+      "type": "RESEARCH" | "ANALYSIS" | "DECISION" | "MONITOR" | "RESOLVE" | "EXECUTE",
       "title": string,
       "params": {},
       "depends_on": [string]
@@ -121,7 +121,19 @@ Output valid JSON (no markdown fences):
 }
 
 Tasks execute in dependency order. "depends_on" references other task titles in this plan.
-Each task must have enough params for the executor to call the right skill.
+
+How to fill params per task type:
+- RESEARCH / ANALYSIS: set params.objective to a natural-language goal (one sentence). The
+  agent will iteratively call its own skills (scan_markets, get_market, web_search, browse_url,
+  read/write_to_kb, estimate_probability, get_wallet_balance, get_my_positions) to accomplish
+  it. Do NOT hand-pick individual skill calls — state the objective.
+- MONITOR / RESOLVE: set params.skill to a specific skill name and params.args to its arguments
+  (e.g. {"skill": "check_resolution", "args": {"market_id": "..."}}).
+- EXECUTE (place a bet): set params {market_id, direction: "YES"|"NO", market_price,
+  estimated_probability, category, market_title}. The risk governor sizes and vets it; never
+  bet without a researched estimate and a real edge.
+
+Keep the plan small — 1 to 4 tasks. Be economical with research.
 
 Available skills:
 {skills_summary}

@@ -52,6 +52,8 @@ async def run_tree(ctx: ExecutionContext, tree: TaskTree) -> dict[str, Any]:
     """Execute all ready tasks until the tree is complete."""
     bets_placed = 0
     research_calls = 0
+    skills_used: list[str] = []
+    failures: list[dict[str, str]] = []
 
     while not tree.is_complete():
         ready = tree.get_ready()
@@ -68,28 +70,110 @@ async def run_tree(ctx: ExecutionContext, tree: TaskTree) -> dict[str, Any]:
                     result = await _dispatch_skill(ctx, node)
                     if node.type == TaskType.RESEARCH:
                         research_calls += 1
+                if node.params.get("skill"):
+                    skills_used.append(node.params["skill"])
+                if isinstance(result, dict):
+                    skills_used.extend(result.get("skills_used", []))
                 tree.mark_done(node.id, result)
             except Exception as e:  # noqa: BLE001 — one task's failure must not crash the session
+                failures.append({"task": node.title, "error": str(e)})
                 tree.mark_failed(node.id, str(e))
 
-    return {"bets_placed": bets_placed, "research_calls": research_calls, "tree": tree.summary()}
+    return {
+        "bets_placed": bets_placed,
+        "research_calls": research_calls,
+        "skills_used": skills_used,
+        "failures": failures,
+        "tree": tree.summary(),
+    }
+
+
+_REACT_SYSTEM = """You are executing one task for Littleman, an autonomous Polymarket trading
+agent. You have skills (tools) available. Use them iteratively to accomplish the objective:
+call a skill, read the result, decide the next call, and stop when the objective is met.
+
+Guidelines:
+- Prefer reading the knowledge base before fresh web research (read_from_kb / search_kb).
+- When researching a market, use scan_markets / get_market / get_orderbook for facts, and
+  web_search / browse_url for news and primary sources.
+- Persist anything worth keeping for future sessions with write_to_kb.
+- For probability work, call estimate_probability with the evidence you gathered.
+- Be economical: a handful of focused tool calls, not exhaustive crawling.
+When done, reply with a concise plain-text summary of what you found or did."""
 
 
 async def _dispatch_skill(ctx: ExecutionContext, node: TaskNode) -> Any:
+    # Direct single-skill dispatch when the task names one explicitly.
     skill = node.params.get("skill")
-    args = node.params.get("args", {})
-    if not skill:
-        return {"note": "no skill specified; task is a reasoning placeholder", "params": node.params}
-    return await ctx.registry.dispatch(skill, args)
+    if skill:
+        return await ctx.registry.dispatch(skill, node.params.get("args", {}))
+
+    # Agentic (ReAct) execution when the task carries a natural-language objective: the agent
+    # iteratively chooses and calls real skills to accomplish it.
+    objective = node.params.get("objective")
+    if objective:
+        from littleman.agent.loop import run as react_run
+
+        loop = await react_run(
+            _REACT_SYSTEM,
+            f"Objective: {objective}\n\nTask: {node.title}",
+            ctx.registry,
+            max_iterations=4,
+        )
+        skills = [t["name"] for t in loop.tool_invocations]
+
+        # Guarantee findings persist: if the agent didn't write to the KB itself, store its
+        # summary so the research is available to future sessions.
+        if "write_to_kb" not in skills and loop.final_text.strip():
+            try:
+                await ctx.registry.dispatch(
+                    "write_to_kb",
+                    {
+                        "topic": node.title,
+                        "content": loop.final_text.strip(),
+                        "confidence": "MEDIUM",
+                        "expires_hours": 24,
+                    },
+                )
+                skills.append("write_to_kb")
+            except Exception:  # noqa: BLE001 — persistence is best-effort
+                pass
+
+        return {
+            "objective": objective,
+            "summary": loop.final_text,
+            "skills_used": skills,
+            "iterations": loop.iterations,
+        }
+
+    return {"note": "no skill or objective specified", "params": node.params}
+
+
+def _to_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 async def _execute_bet(ctx: ExecutionContext, node: TaskNode) -> dict[str, Any]:
     p = node.params
-    market_id = p["market_id"]
-    direction = p["direction"]
-    market_price = float(p.get("market_price", 0.5))
-    estimated_probability = float(p.get("estimated_probability", market_price))
+    market_id = p.get("market_id")
+    direction = (p.get("direction") or "").upper()
+    market_price = _to_float(p.get("market_price"))
+    estimated_probability = _to_float(p.get("estimated_probability"))
     category = p.get("category")
+
+    # Refuse to bet without the data a real decision requires — never guess price/edge.
+    if not market_id or direction not in ("YES", "NO"):
+        return {"status": "NO_BET", "reason": "missing market_id or valid direction"}
+    if market_price is None or estimated_probability is None:
+        return {
+            "status": "NO_BET",
+            "reason": "missing market_price or estimated_probability — research first, then bet",
+        }
 
     # Load the live view for sizing and the risk check — single consistent snapshot.
     state = await ctx.wm.load()

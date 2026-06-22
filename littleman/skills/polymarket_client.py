@@ -47,6 +47,51 @@ async def get_pusd_balance(address: str) -> float:
     return await _erc20_balance(address, settings.pusd_contract, _PUSD_DECIMALS)
 
 
+def make_account_skills() -> list[dict]:
+    """Read-only account skills the agent can call to inspect its own wallet (no spend)."""
+
+    async def get_wallet_balance() -> dict:
+        addr = settings.polymarket_wallet_address
+        if not addr:
+            return {"error": "no wallet configured"}
+        try:
+            bal = await get_pusd_balance(addr)
+        except (httpx.HTTPError, RuntimeError, ValueError) as e:
+            return {"error": str(e)}
+        return {"address": addr, "pusd_balance": round(bal, 2), "collateral": "pUSD"}
+
+    async def get_my_positions() -> dict:
+        addr = settings.polymarket_wallet_address
+        if not addr:
+            return {"error": "no wallet configured"}
+        try:
+            positions = await get_positions(addr)
+        except httpx.HTTPError as e:
+            return {"error": str(e), "positions": []}
+        return {
+            "count": len(positions),
+            "positions": positions,
+            "total_value": round(sum(_position_value(p) for p in positions), 2),
+        }
+
+    return [
+        {
+            "name": "get_wallet_balance",
+            "fn": get_wallet_balance,
+            "description": "Read the agent's own Polymarket pUSD balance (spendable collateral).",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+            "cost": "LOW",
+        },
+        {
+            "name": "get_my_positions",
+            "fn": get_my_positions,
+            "description": "List the agent's own open Polymarket positions and their value.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+            "cost": "LOW",
+        },
+    ]
+
+
 async def get_positions(address: str) -> list[dict[str, Any]]:
     """Read open positions for the wallet from the Polymarket Data API."""
     async with httpx.AsyncClient(headers={"User-Agent": "littleman/0.1"}) as client:
