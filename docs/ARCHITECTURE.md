@@ -52,20 +52,30 @@
 
 ## 1. Problem Statement
 
-Prediction market trading is a research-intensive, time-sensitive activity. Profitable positions require:
+Many valuable domains are **ongoing, irregular, and research-intensive** — work that does not
+arrive as discrete prompts but as a continuous stream where the hard part is deciding *what to do
+right now*. The flagship reference application, Polymarket trading, is one such domain (scan
+markets, research subjects, estimate probabilities, size positions, monitor, review on
+resolution), but the same shape recurs in research pipelines, operations monitoring, content
+operations, and personal-ops work.
 
-- Continuous scanning of available markets to find mispriced probabilities
-- Domain research on the subjects being bet on
-- Probability estimation independent of the current market price
-- Position sizing appropriate to the estimated edge
-- Monitoring of open positions as new information arrives
-- Timely review of resolved positions to update available capital
+In all of them a human operating manually must repeatedly answer: *what should I do right now?*
+The sequence of decisions — what to research, when to research it, when to act, when to monitor,
+when to re-evaluate — is itself a significant cognitive load, distinct from the object-level work.
 
-A human trader doing this manually must repeatedly answer: *what should I do right now?* The sequence of decisions — what to research, when to research it, when to act, when to monitor, when to re-evaluate — is itself a significant cognitive load distinct from the research and analysis work.
+Existing AI agents can execute individual tasks in this chain when a human provides the task.
+What they do not do is generate the task themselves from an internal model of the situation. The
+human's role is not only to approve or review — it is to maintain situational awareness across
+time and decide what the next relevant action is. That work is not trivial and it is not
+automated by tools that respond to prompts.
 
-Existing AI agents can execute individual tasks in this chain when a human provides the task. What they do not do is generate the task themselves from an internal model of the situation. The human's role is not only to approve or review — it is to maintain situational awareness across time and decide what the next relevant action is. That work is not trivial and it is not automated by tools that respond to prompts.
-
-Littleman is designed to eliminate the need for that ongoing human direction. The agent generates its own next action from its own model of the current situation, plans its own schedule of future actions, and executes the full trading cycle without requiring a human to specify what to do between sessions.
+Littleman is a **platform** designed to eliminate the need for that ongoing human direction in
+*any* such domain. The agent generates its own next action from its own model of the current
+situation, plans its own schedule of future actions, and executes the full cycle without a human
+specifying what to do between activations. The domain is supplied by an **application**
+(`SOUL.md` + a skill pack + optional config); the platform machinery below is domain-agnostic.
+Examples in this document are drawn from the Polymarket reference application — read the trading
+specifics as belonging to *that application*, not the platform.
 
 ---
 
