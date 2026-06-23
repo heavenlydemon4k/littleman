@@ -1,5 +1,13 @@
 # Littleman — Technical Architecture
 
+> **Scope note.** Littleman is a general-purpose autonomous-agent platform; **Polymarket trading
+> is the reference application, not the product** (see [META.md](META.md) and
+> [ADR 0002](adr/0002-littleman-is-a-platform.md)). This document is the detailed system design
+> and was written around that reference application, so its examples are trading-flavoured — read
+> the trading specifics (risk governor, budget, positions) as belonging to *that application*.
+> The meta/macro/task core, mental construct, heartbeat system, and runtime are domain-agnostic.
+> For the platform-first overview, start with [META.md](META.md).
+
 ## Table of Contents
 
 1. [Problem Statement](#1-problem-statement)
