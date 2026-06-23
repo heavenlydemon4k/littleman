@@ -93,10 +93,13 @@ async def complete(body: CompleteBody, db: AsyncSession = Depends(get_db)):
         return {"ok": False, "error": "run /onboarding/welcome first"}
 
     p.onboarding_path = body.path
+    p.answers = body.answers or {}
     p.onboarded_at = datetime.now(timezone.utc)
     await db.commit()
 
-    soul = _compile_soul(p.display_name or "the operator", p.purpose, body.path, body.answers or {})
+    soul = await _compile_soul(
+        p.display_name or "the operator", p.purpose, body.path, body.answers or {}
+    )
     soul_path = settings.workspace_dir / "SOUL.md"
     soul_path.parent.mkdir(parents=True, exist_ok=True)
     soul_path.write_text(soul, encoding="utf-8")
@@ -109,12 +112,43 @@ async def complete(body: CompleteBody, db: AsyncSession = Depends(get_db)):
     return {"ok": True, "path": body.path, "first_light_session_id": MAIN_SESSION_ID}
 
 
-def _compile_soul(name: str, purpose: str, path: str, answers: dict) -> str:
-    """Deterministic seed SOUL.md from onboarding answers.
+async def _compile_soul(name: str, purpose: str, path: str, answers: dict) -> str:
+    """Compile SOUL.md from onboarding answers.
 
-    Kept simple and template-based for the MVP. A later refinement can have an LLM compile a
-    richer SOUL.md (and, on the custom path, the agent writes its own via a self-config skill).
+    Real mode: an LLM richly synthesizes a coherent identity from the answers. Fake mode or any
+    failure: a deterministic template. The custom path skips the questionnaire, so its SOUL is a
+    minimal stub the agent fleshes out conversationally via its self-config skill.
     """
+    import json
+
+    from littleman.llm import runtime
+
+    if path == "custom" or runtime.active().get("mode") == "fake":
+        return _compile_soul_template(name, purpose, path, answers)
+
+    from littleman.llm.complete import complete_text
+    from littleman.llm.prompts import SOUL_COMPILE_SYSTEM
+
+    user = (
+        f"Operator name: {name}\n"
+        f"Stated purpose: {purpose}\n"
+        f"Guided answers (JSON): {json.dumps(answers)}\n\n"
+        "Write the SOUL.md now."
+    )
+    try:
+        soul = await complete_text(SOUL_COMPILE_SYSTEM, user, tier="primary")
+        soul = soul.strip()
+        if soul.startswith("```"):
+            soul = "\n".join(soul.splitlines()[1:])
+            if soul.rstrip().endswith("```"):
+                soul = soul.rstrip()[:-3]
+        return soul.strip() or _compile_soul_template(name, purpose, path, answers)
+    except Exception:  # noqa: BLE001 — never block onboarding on the LLM; fall back to template
+        return _compile_soul_template(name, purpose, path, answers)
+
+
+def _compile_soul_template(name: str, purpose: str, path: str, answers: dict) -> str:
+    """Deterministic seed SOUL.md (fallback / fake mode / custom stub)."""
     lines = [
         "# SOUL — Agent Identity",
         "",

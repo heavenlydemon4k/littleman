@@ -48,11 +48,28 @@ async def _onboarding_block(db: AsyncSession) -> str:
     prof = (await db.execute(select(Profile).where(Profile.id == 1))).scalar_one_or_none()
     if not prof:
         return "(no onboarding profile; infer the mission from SOUL.md)"
-    return (
-        f"Operator name: {prof.display_name or 'unknown'}\n"
-        f"Stated purpose: {prof.purpose or '(see SOUL.md)'}\n"
-        f"Onboarding path: {prof.onboarding_path or 'unknown'}"
+    lines = [
+        f"Operator name: {prof.display_name or 'unknown'}",
+        f"Stated purpose: {prof.purpose or '(see SOUL.md)'}",
+        f"Onboarding path: {prof.onboarding_path or 'unknown'}",
+    ]
+    answers = prof.answers or {}
+    labels = {
+        "objective": "Objective and success",
+        "focus": "Focus (prioritize / avoid)",
+        "constraints": "Constraints / red lines",
+        "red_lines": "Constraints / red lines",
+        "autonomy": "Autonomy and check-in",
+    }
+    given = [(labels.get(k, k), str(v).strip()) for k, v in answers.items() if str(v).strip()]
+    if given:
+        lines.append("Guided answers:")
+        lines += [f"- {label}: {val}" for label, val in given]
+    lines.append(
+        "Interpret these answers richly and coherently when forming your priorities, plan, and "
+        "self-model — turn them into concrete operating intent, do not merely restate them."
     )
+    return "\n".join(lines)
 
 
 def _inventory() -> str:

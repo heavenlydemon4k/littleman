@@ -181,6 +181,7 @@ class Profile(Base):
     display_name = Column(String, nullable=True)
     purpose = Column(Text, nullable=True)              # the agent's prime directive
     onboarding_path = Column(String, nullable=True)    # "guided" | "custom"
+    answers = Column(JSON, nullable=True)              # full guided questionnaire answers
     onboarded_at = Column(DateTime(timezone=True), nullable=True)  # null = not yet onboarded
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
