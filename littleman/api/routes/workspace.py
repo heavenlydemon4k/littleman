@@ -31,7 +31,7 @@ async def list_files():
     for p in sorted(base.rglob("*")):
         if p.is_file() and p.suffix in ALLOWED_EXTENSIONS:
             files.append({
-                "path": str(p.relative_to(base)),
+                "path": p.relative_to(base).as_posix(),
                 "name": p.name,
                 "size": p.stat().st_size,
             })

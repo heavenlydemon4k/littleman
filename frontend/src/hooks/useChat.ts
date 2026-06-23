@@ -12,7 +12,7 @@ export function useChat(sessionId: string | null) {
     tool_calls: ToolCall[];
   } | null>(null);
 
-  const { status, send, subscribe, reconnect } = useWebSocket(sessionId);
+  const { status, send, subscribe, reconnect, disconnect } = useWebSocket(sessionId);
 
   // Load history when session changes
   useEffect(() => {
@@ -101,12 +101,24 @@ export function useChat(sessionId: string | null) {
 
         case "assistant_done":
           setStreaming(false);
-          streamBuffer.current = null;
+          if (streamBuffer.current) {
+            const id = streamBuffer.current.id;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === id ? { ...m, _streaming: false } : m))
+            );
+            streamBuffer.current = null;
+          }
           break;
 
         case "error":
           setStreaming(false);
-          streamBuffer.current = null;
+          if (streamBuffer.current) {
+            const id = streamBuffer.current.id;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === id ? { ...m, _streaming: false } : m))
+            );
+            streamBuffer.current = null;
+          }
           break;
       }
     });
@@ -125,5 +137,21 @@ export function useChat(sessionId: string | null) {
     [send, streaming]
   );
 
-  return { messages, streaming, status, sendMessage, reconnect };
+  // Stop an in-progress stream: close the socket (killing the server stream),
+  // mark the partial message as done, then reconnect for next message.
+  const stopStreaming = useCallback(() => {
+    disconnect();
+    setStreaming(false);
+    if (streamBuffer.current) {
+      const id = streamBuffer.current.id;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, _streaming: false } : m))
+      );
+      streamBuffer.current = null;
+    }
+    // Re-establish the socket after a tick so it is ready for the next message
+    setTimeout(reconnect, 150);
+  }, [disconnect, reconnect]);
+
+  return { messages, streaming, status, sendMessage, stopStreaming, reconnect };
 }

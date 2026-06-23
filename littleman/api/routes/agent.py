@@ -8,13 +8,15 @@ boot (First Light) and trigger a single session.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from littleman.db.connection import get_db
-from littleman.db.models import AgentSession, Heartbeat, Position, Strategy
+from littleman.db.models import AgentGuidance, AgentSession, Heartbeat, Observation, Position, Strategy
 from littleman.meta import construct
 from littleman.meta.world_model import WorldModelManager
 
@@ -37,7 +39,6 @@ async def status(db: AsyncSession = Depends(get_db)):
     last = last_session.scalar_one_or_none()
 
     rt = runtime.active()
-    # Real connection checks — report what is actually configured, not assumptions.
     wallet_connected = bool(cfg.polymarket_wallet_address)
     reconciled = wm.wallet_reconciled
     connections = {
@@ -90,13 +91,74 @@ async def session_detail(session_id: str, db: AsyncSession = Depends(get_db)):
     s = result.scalar_one_or_none()
     if not s:
         return {"error": "not found"}
-    # The heartbeat that drove it, if any.
+
+    # Heartbeat that triggered this session.
     hb = None
     if s.heartbeat_id:
         hbr = await db.execute(select(Heartbeat).where(Heartbeat.id == s.heartbeat_id))
         h = hbr.scalar_one_or_none()
         if h:
             hb = {"reason": h.reason, "session_type": h.session_type, "context": h.context}
+
+    # All observations recorded during this session.
+    obs_rows = await db.execute(
+        select(Observation).where(Observation.session_id == session_id).order_by(Observation.logged_at)
+    )
+    observations = [
+        {
+            "id": o.id,
+            "action_type": o.action_type,
+            "action_detail": o.action_detail,
+            "rationale": o.rationale,
+            "predicted_probability": float(o.predicted_probability) if o.predicted_probability is not None else None,
+            "market_price_at_action": float(o.market_price_at_action) if o.market_price_at_action is not None else None,
+            "outcome": o.outcome,
+            "logged_at": o.logged_at.isoformat() if o.logged_at else None,
+        }
+        for o in obs_rows.scalars().all()
+    ]
+
+    # Heartbeats scheduled by this session (via spawned_by = this session's triggering heartbeat).
+    heartbeats_spawned: list[dict] = []
+    if s.heartbeat_id:
+        spawned_rows = await db.execute(
+            select(Heartbeat).where(Heartbeat.spawned_by == s.heartbeat_id).order_by(Heartbeat.fire_at)
+        )
+        heartbeats_spawned = [
+            {
+                "id": h.id,
+                "fire_at": h.fire_at.isoformat() if h.fire_at else None,
+                "reason": h.reason,
+                "session_type": h.session_type,
+                "status": h.status,
+            }
+            for h in spawned_rows.scalars().all()
+        ]
+
+    # Positions opened within this session's time window.
+    positions_opened: list[dict] = []
+    if s.started_at and s.ended_at:
+        pos_rows = await db.execute(
+            select(Position).where(
+                Position.placed_at >= s.started_at,
+                Position.placed_at <= s.ended_at,
+            )
+        )
+        positions_opened = [
+            {
+                "id": p.id,
+                "market_title": p.market_title,
+                "direction": p.direction,
+                "size_usdc": float(p.size_usdc),
+                "entry_price": float(p.entry_price),
+                "predicted_probability": float(p.predicted_probability),
+                "status": p.status,
+                "outcome": p.outcome,
+                "pnl": float(p.pnl) if p.pnl is not None else None,
+            }
+            for p in pos_rows.scalars().all()
+        ]
+
     return {
         "id": s.id,
         "directive": s.directive,
@@ -107,6 +169,9 @@ async def session_detail(session_id: str, db: AsyncSession = Depends(get_db)):
         "ended_at": s.ended_at.isoformat() if s.ended_at else None,
         "outcome_summary": s.outcome_summary,
         "heartbeat": hb,
+        "observations": observations,
+        "heartbeats_spawned": heartbeats_spawned,
+        "positions_opened": positions_opened,
     }
 
 
@@ -126,6 +191,61 @@ async def skills():
         {"name": s.name, "description": s.description, "cost": s.cost, "available": s.available}
         for s in reg._skills.values()  # noqa: SLF001 — internal read for the UI
     ]
+
+
+@router.get("/skills/{name}/doc")
+async def skill_doc(name: str):
+    """Return the on-demand documentation markdown for a named skill."""
+    from littleman.skills.skill_docs import read_skill_doc
+
+    content = await read_skill_doc(name)
+    return {"name": name, "content": content}
+
+
+# ── Guidance ──────────────────────────────────────────────────────────────────
+
+@router.post("/guidance")
+async def add_guidance(body: dict, db: AsyncSession = Depends(get_db)):
+    """Inject operator guidance into the agent's next session."""
+    text = (body.get("text") or "").strip()
+    if not text:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="text is required")
+    gid = str(uuid4())
+    now = datetime.now(timezone.utc)
+    g = AgentGuidance(id=gid, text=text, created_at=now)
+    db.add(g)
+    await db.commit()
+    return {"id": gid, "text": text, "created_at": now.isoformat(), "consumed": False, "consumed_at": None}
+
+
+@router.get("/guidance")
+async def list_guidance(db: AsyncSession = Depends(get_db)):
+    """Return all guidance items, pending first then consumed."""
+    result = await db.execute(select(AgentGuidance).order_by(AgentGuidance.created_at))
+    rows = result.scalars().all()
+    return [
+        {
+            "id": g.id,
+            "text": g.text,
+            "created_at": g.created_at.isoformat() if g.created_at else None,
+            "consumed": g.consumed_at is not None,
+            "consumed_at": g.consumed_at.isoformat() if g.consumed_at else None,
+        }
+        for g in rows
+    ]
+
+
+@router.delete("/guidance/{guidance_id}")
+async def delete_guidance(guidance_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AgentGuidance).where(AgentGuidance.id == guidance_id))
+    g = result.scalar_one_or_none()
+    if not g:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="not found")
+    await db.delete(g)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.get("/heartbeats")

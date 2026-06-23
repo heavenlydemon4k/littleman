@@ -113,9 +113,34 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     from littleman.skills.probability import make_probability_skill
     from littleman.skills.polymarket import make_polymarket_skills
     from littleman.skills.polymarket_client import make_account_skills
+    from littleman.skills.skill_docs import read_skill_doc
 
     global _registry
     registry = SkillRegistry()
+
+    # On-demand skill documentation — always available; zero cost.
+    registry.register(
+        name="read_skill_doc",
+        fn=read_skill_doc,
+        description=(
+            "Read the detailed documentation for a named skill before using it. "
+            "Call this first when you need guidance on how to use a specific skill effectively."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": (
+                        "Skill name, e.g. 'web_research', 'probability', "
+                        "'polymarket_scan', 'polymarket_orderbook', 'kb', 'heartbeat'"
+                    ),
+                }
+            },
+            "required": ["name"],
+        },
+        cost="LOW",
+    )
 
     if db_session_factory:
         for skill in make_kb_skills(db_session_factory):

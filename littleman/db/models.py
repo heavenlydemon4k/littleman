@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -154,6 +157,17 @@ class ChatMessage(Base):
     tool_name = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     session = relationship("ChatSession", back_populates="messages")
+
+
+# ── Operator guidance ─────────────────────────────────────────────────────────
+
+class AgentGuidance(Base):
+    __tablename__ = "agent_guidance"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
 
 
 # ── LLM provider config ───────────────────────────────────────────────────────

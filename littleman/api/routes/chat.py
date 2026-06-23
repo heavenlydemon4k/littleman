@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import AsyncIterator
 
 import litellm
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -50,7 +50,7 @@ async def rename_session(session_id: str, body: dict, db: AsyncSession = Depends
     result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
     session = result.scalar_one_or_none()
     if not session:
-        return {"error": "not found"}, 404
+        raise HTTPException(status_code=404, detail="Session not found")
     if "title" in body:
         session.title = body["title"]
     await db.commit()
@@ -67,6 +67,20 @@ async def delete_session(session_id: str, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(ChatSession).where(ChatSession.id == session_id))
     await db.commit()
     return {"ok": True}
+
+
+@router.get("/sessions/{session_id}")
+async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {
+        "id": session.id,
+        "title": session.title,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+        "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+    }
 
 
 @router.get("/sessions/{session_id}/messages")

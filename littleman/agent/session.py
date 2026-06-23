@@ -18,9 +18,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import uuid
 from datetime import datetime, timezone
 
+log = logging.getLogger("session")
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from littleman.agent.lock import SessionLock
@@ -64,6 +68,7 @@ async def _run_session_locked(
 
     async with AsyncSessionLocal() as db:
         heartbeat_context: dict = dict(manual_context)
+        hb = None
         if heartbeat_id:
             hb = await store.get_heartbeat(db, heartbeat_id)
             if hb:
@@ -93,6 +98,16 @@ async def _run_session_locked(
         except Exception as e:  # noqa: BLE001 — a failed session must mark its heartbeat
             if heartbeat_id:
                 await store.mark_failed(db, heartbeat_id, str(e))
+                if hb:
+                    retry = await store.schedule_retry(db, hb, str(e))
+                    if retry:
+                        attempt = (hb.context or {}).get("_retry_count", 0) + 1
+                        log.warning(
+                            "heartbeat %s failed; retry #%d scheduled at %s",
+                            heartbeat_id[:8], attempt, retry.fire_at.isoformat(),
+                        )
+                    else:
+                        log.error("heartbeat %s failed; max retries exhausted", heartbeat_id[:8])
             raise
 
 
@@ -114,8 +129,24 @@ async def _run_pipeline(
 
     state = await wm.load()
 
+    # Inject any pending operator guidance before situation synthesis.
+    from littleman.db.models import AgentGuidance
+    pending_q = await db.execute(
+        select(AgentGuidance).where(AgentGuidance.consumed_at.is_(None))
+    )
+    pending_guidance = pending_q.scalars().all()
+    if pending_guidance:
+        heartbeat_context = {**heartbeat_context, "operator_guidance": [g.text for g in pending_guidance]}
+
     # 3-4. Situation -> directive (directive engine writes DIRECTIVE.md).
     situation = await synthesizer.synthesize(state, heartbeat_context)
+
+    # Mark guidance consumed now that it has been passed to the synthesizer.
+    if pending_guidance:
+        _now = datetime.now(timezone.utc)
+        for g in pending_guidance:
+            g.consumed_at = _now
+        await db.flush()
     directive_payload = await directive.generate(situation)
 
     # 5. Strategy + task plan.

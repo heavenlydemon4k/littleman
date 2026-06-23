@@ -1,5 +1,5 @@
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
-import { Send, Loader2, Brain, Wrench, X } from "lucide-react";
+import { Send, Square, Brain, Wrench, X } from "lucide-react";
 import clsx from "clsx";
 
 interface Skill {
@@ -11,11 +11,12 @@ interface Skill {
 
 interface Props {
   onSend: (text: string, opts: { thinking: boolean; skills: boolean }) => void;
+  onStop?: () => void;
   streaming: boolean;
   disabled: boolean;
 }
 
-export function ChatInput({ onSend, streaming, disabled }: Props) {
+export function ChatInput({ onSend, onStop, streaming, disabled }: Props) {
   const [value, setValue] = useState("");
   const [thinking, setThinking] = useState(false);
   const [skillsOn, setSkillsOn] = useState(true);
@@ -75,7 +76,7 @@ export function ChatInput({ onSend, streaming, disabled }: Props) {
                 </div>
               </div>
             ))}
-            {skills.length === 0 && <p className="text-xs text-muted">Loading…</p>}
+            {skills.length === 0 && <p className="text-xs text-muted">Loading...</p>}
           </div>
         </div>
       )}
@@ -83,10 +84,10 @@ export function ChatInput({ onSend, streaming, disabled }: Props) {
       <div className="mx-auto max-w-3xl">
         {/* Option toggles */}
         <div className="mb-2 flex items-center gap-2">
-          <Toggle active={thinking} onClick={() => setThinking((v) => !v)} icon={Brain} title="Thinking mode — show the model's reasoning (if the model supports it)">
+          <Toggle active={thinking} onClick={() => setThinking((v) => !v)} icon={Brain} title="Show model reasoning (if supported)">
             Thinking
           </Toggle>
-          <Toggle active={skillsOn} onClick={() => setSkillsOn((v) => !v)} icon={Wrench} title="Expose the agent's skills/tools to this chat">
+          <Toggle active={skillsOn} onClick={() => setSkillsOn((v) => !v)} icon={Wrench} title="Expose agent skills/tools to this chat">
             Skills
           </Toggle>
           <button
@@ -104,24 +105,34 @@ export function ChatInput({ onSend, streaming, disabled }: Props) {
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={onKeyDown}
             onInput={onInput}
-            placeholder={disabled ? "Connecting…" : "Message littleman… (Enter to send, Shift+Enter for newline)"}
+            placeholder={disabled ? "Connecting..." : "Message littleman... (Enter to send, Shift+Enter for newline)"}
             disabled={disabled || streaming}
             rows={1}
             className="flex-1 resize-none bg-transparent text-sm text-white placeholder-muted outline-none disabled:opacity-50"
             style={{ minHeight: "24px", maxHeight: "200px" }}
           />
-          <button
-            onClick={submit}
-            disabled={!value.trim() || streaming || disabled}
-            className={clsx(
-              "flex-shrink-0 rounded-lg p-1.5 transition-colors",
-              value.trim() && !streaming && !disabled
-                ? "text-blue-400 hover:bg-surface-4"
-                : "text-muted cursor-not-allowed"
-            )}
-          >
-            {streaming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-          </button>
+          {streaming ? (
+            <button
+              onClick={onStop}
+              title="Stop generating"
+              className="flex-shrink-0 rounded-lg border border-red-500/40 p-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <Square size={16} />
+            </button>
+          ) : (
+            <button
+              onClick={submit}
+              disabled={!value.trim() || disabled}
+              className={clsx(
+                "flex-shrink-0 rounded-lg p-1.5 transition-colors",
+                value.trim() && !disabled
+                  ? "text-blue-400 hover:bg-surface-4"
+                  : "text-muted cursor-not-allowed"
+              )}
+            >
+              <Send size={18} />
+            </button>
+          )}
         </div>
         <p className="mt-1.5 text-center text-xs text-muted">
           littleman can make mistakes. Verify bets before they execute.

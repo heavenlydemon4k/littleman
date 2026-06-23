@@ -1,40 +1,178 @@
-import { useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import clsx from "clsx";
 import { MessageItem } from "../components/chat/MessageItem";
 import { ChatInput } from "../components/chat/ChatInput";
 import { useChat } from "../hooks/useChat";
-import { Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Wifi, WifiOff, Loader2, Plus, Bot, ChevronDown, Pencil, Check, X } from "lucide-react";
 import type { ChatMessage } from "../types";
 
 export function ChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
-  const { messages, streaming, status, sendMessage, reconnect } = useChat(sessionId ?? null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { messages, streaming, status, sendMessage, stopStreaming, reconnect } = useChat(sessionId ?? null);
+
+  // Session title
+  const [sessionTitle, setSessionTitle] = useState<string>("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState("");
+  const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!sessionId) { setSessionTitle(""); return; }
+    fetch(`/api/chat/sessions/${sessionId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((s) => { if (s) { setSessionTitle(s.title); setTitleInput(s.title); } })
+      .catch(console.error);
+  }, [sessionId]);
+
+  // Re-fetch title after first message lands (backend auto-sets it from first user message)
+  const prevMsgLen = useRef(0);
+  useEffect(() => {
+    if (!sessionId) return;
+    if (messages.length > 0 && prevMsgLen.current === 0) {
+      fetch(`/api/chat/sessions/${sessionId}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((s) => { if (s) { setSessionTitle(s.title); setTitleInput(s.title); } })
+        .catch(console.error);
+    }
+    prevMsgLen.current = messages.length;
+  }, [messages.length, sessionId]);
+
+  const startEditTitle = () => {
+    setEditingTitle(true);
+    setTitleInput(sessionTitle);
+    setTimeout(() => titleRef.current?.select(), 0);
+  };
+
+  const saveTitle = async () => {
+    if (!sessionId) return;
+    setEditingTitle(false);
+    const newTitle = titleInput.trim() || sessionTitle;
+    setSessionTitle(newTitle);
+    await fetch(`/api/chat/sessions/${sessionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: newTitle }),
+    });
+  };
+
+  const cancelEditTitle = () => {
+    setEditingTitle(false);
+    setTitleInput(sessionTitle);
+  };
+
+  // Scroll to bottom
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const scrollToBottom = (smooth = true) => {
+    scrollAreaRef.current?.scrollTo({
+      top: scrollAreaRef.current.scrollHeight,
+      behavior: smooth ? "smooth" : "instant",
+    });
+  };
+
+  const handleScroll = () => {
+    if (!scrollAreaRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current;
+    setIsAtBottom(scrollHeight - scrollTop - clientHeight < 80);
+  };
+
+  useEffect(() => {
+    if (isAtBottom) scrollToBottom();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
+  // New conversation
+  const createSession = async () => {
+    const res = await fetch("/api/chat/sessions", { method: "POST" });
+    const session: { id: string } = await res.json();
+    navigate(`/chat/${session.id}`);
+  };
+
+  // Send + force scroll
+  const handleSend = (text: string, opts: { thinking: boolean; skills: boolean }) => {
+    sendMessage(text, opts);
+    setIsAtBottom(true);
+    setTimeout(() => scrollToBottom(false), 50);
+  };
+
+  // Empty state
   if (!sessionId) {
     return (
-      <div className="flex flex-1 items-center justify-center">
-        <div className="text-center">
-          <p className="text-sm text-muted">Select a conversation or start a new one</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-5">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-surface-2">
+            <Bot size={26} className="text-blue-400" />
+          </div>
+          <div>
+            <p className="font-mono text-sm font-semibold text-white">No conversation open</p>
+            <p className="mt-1 text-xs text-muted">
+              Talk to littleman directly -- ask about markets, request research, or explore positions.
+            </p>
+          </div>
         </div>
+        <button
+          onClick={createSession}
+          className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-muted hover:border-blue-500 hover:text-white transition-colors"
+        >
+          <Plus size={14} />
+          New conversation
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Status bar */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-2">
-        <span className="text-xs text-muted font-mono">session: {sessionId.slice(0, 8)}</span>
-        <div className="flex items-center gap-1.5">
+    <div className="relative flex flex-1 flex-col overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5 gap-3">
+        {/* Title / inline rename */}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {editingTitle ? (
+            <>
+              <input
+                ref={titleRef}
+                value={titleInput}
+                onChange={(e) => setTitleInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveTitle();
+                  if (e.key === "Escape") cancelEditTitle();
+                }}
+                onBlur={saveTitle}
+                className="flex-1 min-w-0 rounded border border-blue-500/50 bg-surface-2 px-2 py-0.5 text-sm text-white outline-none"
+              />
+              <button onClick={saveTitle} className="text-green-400 hover:text-green-300">
+                <Check size={14} />
+              </button>
+              <button onClick={cancelEditTitle} className="text-muted hover:text-white">
+                <X size={14} />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={startEditTitle}
+              title="Click to rename"
+              className="group flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 hover:bg-surface-2 transition-colors"
+            >
+              <span className="truncate text-sm text-white">
+                {sessionTitle || sessionId.slice(0, 8)}
+              </span>
+              <Pencil size={11} className="flex-shrink-0 text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+          )}
+        </div>
+
+        {/* WS status */}
+        <div className="flex flex-shrink-0 items-center gap-1.5">
           {status === "connected" && <Wifi size={12} className="text-green-400" />}
           {status === "disconnected" && (
-            <button onClick={reconnect} className="flex items-center gap-1 text-xs text-muted hover:text-white">
+            <button
+              onClick={reconnect}
+              className="flex items-center gap-1 text-xs text-muted hover:text-white"
+              title="Reconnect"
+            >
               <WifiOff size={12} className="text-red-400" />
               reconnect
             </button>
@@ -51,8 +189,12 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto py-4">
+      {/* Message list */}
+      <div
+        ref={scrollAreaRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto py-4"
+      >
         {messages.length === 0 && !streaming && (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm text-muted">Send a message to start</p>
@@ -64,11 +206,24 @@ export function ChatPage() {
             message={m as ChatMessage & { _streaming?: boolean }}
           />
         ))}
-        <div ref={bottomRef} />
       </div>
 
+      {/* Scroll-to-bottom button */}
+      {!isAtBottom && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-28 flex justify-center">
+          <button
+            onClick={() => { setIsAtBottom(true); scrollToBottom(); }}
+            className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs text-muted shadow-lg hover:border-blue-500 hover:text-white transition-colors"
+          >
+            <ChevronDown size={13} />
+            Scroll to bottom
+          </button>
+        </div>
+      )}
+
       <ChatInput
-        onSend={sendMessage}
+        onSend={handleSend}
+        onStop={stopStreaming}
         streaming={streaming}
         disabled={status !== "connected"}
       />

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from littleman.config import settings
 from littleman.db.connection import AsyncSessionLocal, init_db
@@ -20,6 +21,30 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("scheduler")
 
 
+async def _cleanup_stale(timeout_minutes: int) -> None:
+    """Detect heartbeats stuck in RUNNING and mark them FAILED so they can be retried.
+
+    This handles the case where a session crashed without cleaning up after itself (process
+    killed, OOM, machine reboot). Without this check, those heartbeats stay RUNNING forever
+    and the agent goes silent. Adopted from OpenClaw's stale-run detection pattern.
+    """
+    async with AsyncSessionLocal() as db:
+        stale = await store.get_stale_running_heartbeats(db, timeout_minutes)
+        for hb in stale:
+            elapsed = (datetime.now(timezone.utc) - hb.started_at).total_seconds() / 60
+            log.warning(
+                "heartbeat %s has been RUNNING for %.0f min — marking FAILED and scheduling retry",
+                hb.id[:8], elapsed,
+            )
+            reason = f"session timed out after {elapsed:.0f} min (stale — process likely crashed)"
+            await store.mark_failed(db, hb.id, reason)
+            retry = await store.schedule_retry(db, hb, reason)
+            if retry:
+                log.info("retry scheduled at %s", retry.fire_at.isoformat())
+            else:
+                log.error("heartbeat %s: max retries exhausted after stale cleanup", hb.id[:8])
+
+
 async def _tick(force: bool = False) -> int:
     """Fire due heartbeats. The background loop passes force=False so it only fires when
     autonomous mode is on; manual triggers (UI 'Fire due') pass force=True."""
@@ -27,6 +52,10 @@ async def _tick(force: bool = False) -> int:
 
     if not force and not runtime.is_autonomous():
         return 0
+
+    # Recover any heartbeats whose sessions crashed without marking themselves done.
+    if settings.stale_session_timeout_minutes > 0:
+        await _cleanup_stale(settings.stale_session_timeout_minutes)
 
     async with AsyncSessionLocal() as db:
         due = await store.get_due_heartbeats(db)
@@ -63,6 +92,13 @@ async def run_forever() -> None:
         settings.heartbeat_poll_interval_seconds,
         runtime.is_autonomous(),
     )
+
+    # Catch up any heartbeats that fired while the process was down.
+    # force=True bypasses the autonomous check — if a heartbeat was scheduled it must fire.
+    missed = await _tick(force=True)
+    if missed:
+        log.info("startup catchup: executed %d missed heartbeat(s)", missed)
+
     while True:
         try:
             await _tick()

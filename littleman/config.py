@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     heartbeat_poll_interval_seconds: int = 30
     heartbeat_missed_threshold_minutes: int = 10
     idle_heartbeat_interval_hours: int = 4
+    # Heartbeats stuck in RUNNING longer than this are treated as hung sessions and retried.
+    # Mirrors OpenClaw's stale-run detection. Set to 0 to disable.
+    stale_session_timeout_minutes: int = 30
 
     # Context budget for prompt assembly (mirrors OpenClaw bootstrapMaxChars/TotalMaxChars).
     # Caps how much of SOUL.md + the mental construct is injected so the growing, append-only

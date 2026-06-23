@@ -4,6 +4,16 @@ import { Plus, Trash2, MessageSquare, Settings, FolderOpen, Bot, Activity, Radio
 import clsx from "clsx";
 import type { ChatSession } from "../../types";
 
+function relTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60_000) return "now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
+  if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 export function Sidebar() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const navigate = useNavigate();
@@ -75,7 +85,7 @@ export function Sidebar() {
             )}
           >
             <Radio size={14} className="flex-shrink-0 text-green-400" />
-            <span className="flex-1 truncate">Main · agent</span>
+            <span className="flex-1 truncate">Main agent</span>
             <span className="rounded bg-surface-4 px-1.5 py-0.5 text-[10px] text-muted">auto</span>
           </Link>
         </div>
@@ -110,9 +120,12 @@ export function Sidebar() {
           >
             <MessageSquare size={14} className="flex-shrink-0" />
             <span className="flex-1 truncate">{s.title}</span>
+            <span className="flex-shrink-0 text-[10px] text-muted/60 group-hover:hidden">
+              {relTime(s.updated_at)}
+            </span>
             <button
               onClick={(e) => deleteSession(e, s.id)}
-              className="invisible ml-auto flex-shrink-0 rounded p-0.5 text-muted hover:text-red-400 group-hover:visible"
+              className="invisible hidden flex-shrink-0 rounded p-0.5 text-muted hover:text-red-400 group-hover:visible group-hover:block"
             >
               <Trash2 size={13} />
             </button>
