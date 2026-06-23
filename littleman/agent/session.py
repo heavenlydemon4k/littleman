@@ -189,6 +189,15 @@ async def _run_pipeline(
         ) + "\n"
     construct.append_reflection(reflection)
 
+    # 7b. MAINTAIN the construct — re-rank PRIORITIES so the workspace stays a living memory
+    # rather than a frozen First-Light snapshot (see mental-workspace-lifecycle.md).
+    from littleman.meta.maintain import maintain_construct
+
+    try:
+        await maintain_construct(directive_payload, summary, exec_result)
+    except Exception:  # noqa: BLE001 — maintenance must never break a wake
+        pass
+
     # 8. Self-scheduler plans future heartbeats.
     hb_plan = await planner.plan_and_schedule(
         db, state, session_summary=summary, spawned_by=heartbeat_id

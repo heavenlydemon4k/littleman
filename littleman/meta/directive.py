@@ -15,7 +15,7 @@ from typing import Any
 
 from littleman.llm.complete import complete_json
 from littleman.llm.client import load_soul
-from littleman.llm.prompts import DIRECTIVE_SYSTEM, DIRECTIVE_USER, render
+from littleman.llm.prompts import DIRECTIVE_SYSTEM, DIRECTIVE_USER, WORKSPACE_CORE, render
 from littleman.meta import construct
 
 
@@ -63,6 +63,8 @@ async def generate(situation_report: dict[str, Any]) -> dict[str, Any]:
         situation_report_json=json.dumps(situation_report, indent=2),
         soul_excerpt=_soul_excerpt(),
     )
+    # Continuously onboard the agent on its workspace, then show its current cognitive state.
+    user = f"{WORKSPACE_CORE}\n\n{user}"
     if construct_block:
         user = f"Mental construct (your current cognitive state):\n{construct_block}\n\n{user}"
 

@@ -12,6 +12,30 @@ def render(_template: str, **values: object) -> str:
     return out
 
 
+WORKSPACE_CORE = """Your mental workspace — read it at the start of a wake, maintain it at the end:
+- PRIORITIES.md: your ranked stack of what matters now. You re-rank it every wake.
+- MACRO_PLAN.md: your strategy and campaigns. Revise only when the strategy actually shifts.
+- SELF.md: your capabilities, calibration, and learned patterns. Amend it when you learn something.
+- REFLECTION.md: append-only outcome log. Never rewrite it; only add entries.
+Reason from your priorities. Update your self-model when an outcome teaches you something. You
+read and write these with read_construct / write_construct / append_reflection."""
+
+
+PRIORITIES_MAINTAIN_SYSTEM = """You maintain PRIORITIES.md — the agent's ranked stack of what
+matters now. Rewrite it to reflect what just happened this wake.
+
+Output ONLY the markdown body (no code fences, no preamble). Structure:
+## Current Summary
+(3-5 bullets: the state of things at a glance)
+then ranked priorities, each as:
+## P{n}: {short name}
+**Why:** {one or two sentences}
+**Revisit:** {the event or time that should reopen this}
+
+Drop priorities that are done or no longer apply; add ones this wake surfaced; re-rank by what
+matters now. Be specific to the actual situation. Do not pad or invent."""
+
+
 SOUL_COMPILE_SYSTEM = """You are writing the SOUL.md for an autonomous agent on the littleman
 platform. SOUL.md is the agent's durable identity and prime directive — read at the start of
 every activation. You are compiling it from the operator's onboarding answers.
