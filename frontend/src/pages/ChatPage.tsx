@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { MessageItem } from "../components/chat/MessageItem";
 import { ChatInput } from "../components/chat/ChatInput";
 import { useChat } from "../hooks/useChat";
-import { Wifi, WifiOff, Loader2, Plus, Bot, ChevronDown, Pencil, Check, X } from "lucide-react";
+import { Wifi, WifiOff, Loader2, Plus, Bot, ChevronDown, Pencil, Check, X, Play, Circle } from "lucide-react";
 import type { ChatMessage } from "../types";
 
 export function ChatPage() {
@@ -97,6 +97,38 @@ export function ChatPage() {
     setIsAtBottom(true);
     setTimeout(() => scrollToBottom(false), 50);
   };
+
+  // First Light (compulsory first activation), shown on the empty Main session
+  const FL_STEPS = [
+    "waking",
+    "reading SOUL.md and onboarding answers",
+    "gathering bearings",
+    "forming first understanding",
+  ];
+  const [flBusy, setFlBusy] = useState(false);
+  const [flStep, setFlStep] = useState(0);
+  const [flError, setFlError] = useState("");
+
+  const runFirstLight = async () => {
+    setFlBusy(true);
+    setFlStep(0);
+    setFlError("");
+    const timer = setInterval(() => setFlStep((s) => Math.min(s + 1, FL_STEPS.length - 1)), 3500);
+    try {
+      const r = await fetch("/api/agent/first-light", { method: "POST" });
+      if (!r.ok) throw new Error("first light failed");
+      clearInterval(timer);
+      // The greeting is now in the Main session; reload to show it as a normal chat.
+      window.location.reload();
+    } catch (e) {
+      clearInterval(timer);
+      setFlBusy(false);
+      setFlError(String(e));
+    }
+  };
+
+  const isEmpty = messages.length === 0 && !streaming;
+  const isMain = sessionId === "main";
 
   // Empty state
   if (!sessionId) {
@@ -195,17 +227,61 @@ export function ChatPage() {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto py-4"
       >
-        {messages.length === 0 && !streaming && (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted">Send a message to start</p>
+        {isEmpty ? (
+          <div className="flex h-full flex-col items-center justify-center gap-6 px-4">
+            {/* Bare brand */}
+            <div className="flex items-center gap-2">
+              <Bot size={22} className="text-blue-400" />
+              <span className="font-mono text-lg font-semibold text-white">littleman</span>
+            </div>
+
+            {isMain ? (
+              /* First Light: a button, not a text field */
+              <div className="flex flex-col items-center gap-4">
+                <p className="text-xs text-muted">first activation, let the agent gather its bearings</p>
+                {!flBusy ? (
+                  <button
+                    onClick={runFirstLight}
+                    className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <Play size={16} /> Begin onboarding
+                  </button>
+                ) : (
+                  <div className="flex w-72 flex-col gap-2">
+                    {FL_STEPS.map((s, i) => (
+                      <div key={s} className="flex items-center gap-2 text-xs">
+                        {i < flStep ? (
+                          <Check size={14} className="text-green-400" />
+                        ) : i === flStep ? (
+                          <Loader2 size={14} className="animate-spin text-blue-400" />
+                        ) : (
+                          <Circle size={14} className="text-muted" />
+                        )}
+                        <span className={i <= flStep ? "text-white" : "text-muted"}>{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {flError && <p className="text-xs text-red-400">{flError}</p>}
+              </div>
+            ) : (
+              /* Regular empty session: centered composer */
+              <div className="w-full max-w-2xl">
+                <ChatInput
+                  onSend={handleSend}
+                  onStop={stopStreaming}
+                  streaming={streaming}
+                  disabled={status !== "connected"}
+                  centered
+                />
+              </div>
+            )}
           </div>
+        ) : (
+          messages.map((m) => (
+            <MessageItem key={m.id} message={m as ChatMessage & { _streaming?: boolean }} />
+          ))
         )}
-        {messages.map((m) => (
-          <MessageItem
-            key={m.id}
-            message={m as ChatMessage & { _streaming?: boolean }}
-          />
-        ))}
       </div>
 
       {/* Scroll-to-bottom button */}
@@ -221,12 +297,15 @@ export function ChatPage() {
         </div>
       )}
 
-      <ChatInput
-        onSend={handleSend}
-        onStop={stopStreaming}
-        streaming={streaming}
-        disabled={status !== "connected"}
-      />
+      {/* Bottom composer once the conversation has started (empty state owns the centered one) */}
+      {!isEmpty && (
+        <ChatInput
+          onSend={handleSend}
+          onStop={stopStreaming}
+          streaming={streaming}
+          disabled={status !== "connected"}
+        />
+      )}
     </div>
   );
 }

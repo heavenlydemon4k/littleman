@@ -358,6 +358,17 @@ async def run_once(body: dict | None = None):
     return {"ok": True, "result": result}
 
 
+@router.post("/first-light")
+async def first_light_run(db: AsyncSession = Depends(get_db)):
+    """Run the compulsory First Light: the agent reads its files, authors its construct, and
+    greets the operator (narrated into the Main session). Triggered by the chat's activate
+    button right after onboarding."""
+    from littleman.meta.first_light import run as fl_run
+
+    res = await fl_run(db)
+    return {"ok": True, "greeting": res.get("greeting"), "mode": res.get("mode")}
+
+
 @router.post("/reconcile")
 async def reconcile(db: AsyncSession = Depends(get_db)):
     """Read the configured wallet's real USDC balance + positions from Polygon/Polymarket and

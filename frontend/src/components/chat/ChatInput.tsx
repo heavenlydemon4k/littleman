@@ -14,9 +14,10 @@ interface Props {
   onStop?: () => void;
   streaming: boolean;
   disabled: boolean;
+  centered?: boolean;
 }
 
-export function ChatInput({ onSend, onStop, streaming, disabled }: Props) {
+export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Props) {
   const [value, setValue] = useState("");
   const [thinking, setThinking] = useState(false);
   const [skillsOn, setSkillsOn] = useState(true);
@@ -53,7 +54,7 @@ export function ChatInput({ onSend, onStop, streaming, disabled }: Props) {
   };
 
   return (
-    <div className="border-t border-border bg-surface-1 p-4">
+    <div className={centered ? "px-4 pb-2" : "border-t border-border bg-surface-1 p-4"}>
       {/* Skills popover */}
       {showSkills && (
         <div className="mx-auto mb-2 max-w-3xl rounded-xl border border-border bg-surface-2 p-3">
