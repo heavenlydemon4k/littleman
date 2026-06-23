@@ -3,6 +3,17 @@
 @tailwind utilities;
 
 @layer base {
+  /* Default accent = monochrome (black theme). Recolored at runtime by src/theme.ts when the
+     user picks a different accent in Settings. */
+  :root {
+    --accent-200: #eaeaea;
+    --accent-300: #dcdcdc;
+    --accent-400: #c4c4c4;
+    --accent-500: #9a9a9a;
+    --accent-600: #333333;
+    --accent-700: #3f3f3f;
+  }
+
   * {
     box-sizing: border-box;
   }

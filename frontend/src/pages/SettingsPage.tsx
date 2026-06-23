@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Star, Cpu } from "lucide-react";
+import { Plus, Trash2, Star, Cpu, Palette } from "lucide-react";
 import clsx from "clsx";
 import type { LLMConfig } from "../types";
+import { ACCENT_PRESETS, applyAccent, currentAccent } from "../theme";
 
 const PROVIDERS = ["anthropic", "openai", "ollama", "litellm"];
 
@@ -123,6 +124,10 @@ export function SettingsPage() {
       <div className="mx-auto max-w-2xl">
         <h1 className="mb-1 font-mono text-lg font-semibold text-white">Settings</h1>
         <p className="mb-6 text-sm text-muted">Agent runtime + chat model configuration</p>
+
+        <AppearanceSection />
+
+        <div className="mt-6" />
 
         <RuntimeSection />
 
@@ -334,6 +339,47 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="mb-1.5 block text-xs text-muted">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function AppearanceSection() {
+  const [accent, setAccent] = useState<string>(currentAccent());
+
+  const pick = (key: string) => {
+    applyAccent(key);
+    setAccent(key);
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-surface-2 p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <Palette size={16} className="text-blue-400" />
+        <h2 className="font-mono text-sm font-semibold text-white">Appearance</h2>
+      </div>
+      <p className="mb-4 text-xs text-muted">
+        Accent color. The default is monochrome (black); pick another to recolor the interface.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {ACCENT_PRESETS.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => pick(p.key)}
+            className={clsx(
+              "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors",
+              accent === p.key
+                ? "border-blue-500 text-white"
+                : "border-border text-muted hover:text-white"
+            )}
+          >
+            <span
+              className="h-3 w-3 rounded-full"
+              style={{ background: p.stops[3], border: "1px solid rgba(255,255,255,0.15)" }}
+            />
+            {p.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

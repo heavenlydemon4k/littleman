@@ -123,11 +123,23 @@ globally beyond the autonomy toggle that already exists for heartbeats.
 
 ### First Light is a button, not a text field
 
-- For the compulsory First Light, the centered "input" is replaced by an **activate button**
-  (the user presses it to wake the agent for the first time — there's no message to type yet).
-- On activation, **live status text streams** showing what the agent is doing (e.g. "waking…",
-  "reading SOUL.md…", "gathering bearings…", "forming first understanding…"), then the agent's
+- For the compulsory First Light, the centered "input" is replaced by an **activate button**.
+  The button copy is about **beginning the agent's onboarding** (e.g. "Begin onboarding") — because
+  that is what First Light *is*: the agent onboarding itself, using the user's onboarded info plus
+  the architecture's own onboarding process. The user presses it once (there's no message to type
+  yet).
+- On activation, **live status text streams** showing what the agent is doing (e.g. "waking",
+  "reading SOUL.md", "gathering bearings", "forming first understanding"), then the agent's
   greeting appears and the session becomes a normal chat (input drops to the bottom).
+
+### Visual style (decided)
+
+- **Default theme is monochrome / black** (no blue accent). The accent is **customizable in
+  Settings → Appearance** (Monochrome, Blue, Green, Amber, Purple presets), persisted locally.
+  Implemented by resolving every accent usage to CSS variables (`--accent-200..700`), so a
+  preset recolors the whole UI without touching components.
+- **Brand mark stays bare** (robot icon + "littleman", no tagline).
+- **No em-dashes in frontend copy** (house style).
 
 ---
 

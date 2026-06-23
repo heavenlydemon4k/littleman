@@ -12,7 +12,7 @@ export function useWebSocket(sessionId: string | null) {
   const listeners = useRef<Set<(e: WsEvent) => void>>(new Set());
   const attempts = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Flag: true when we intentionally closed — prevents auto-reconnect
+  // Flag: true when we intentionally closed - prevents auto-reconnect
   const intentional = useRef(false);
 
   const clearTimer = useCallback(() => {
@@ -66,14 +66,14 @@ export function useWebSocket(sessionId: string | null) {
         const event: WsEvent = JSON.parse(ev.data);
         listeners.current.forEach((fn) => fn(event));
       } catch {
-        // malformed frame — ignore
+        // malformed frame - ignore
       }
     };
 
     ws.current = socket;
   }, [sessionId, clearTimer]);
 
-  // Intentional close — no auto-reconnect follows
+  // Intentional close - no auto-reconnect follows
   const disconnect = useCallback(() => {
     intentional.current = true;
     clearTimer();
