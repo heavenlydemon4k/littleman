@@ -39,15 +39,6 @@
 14. [Data Model](#14-data-model)
 15. [Risk Management](#15-risk-management)
 16. [Design Decisions and Tradeoffs](#16-design-decisions-and-tradeoffs)
-   - 9.1 Polymarket Mechanics
-   - 9.2 Topic Ontology
-   - 9.3 Edge Theory
-   - 9.4 Wallet and Budget Model
-10. [The Planning Cycle](#10-the-planning-cycle)
-11. [The Observation Loop](#11-the-observation-loop)
-12. [Data Model](#12-data-model)
-13. [Risk Management](#13-risk-management)
-14. [Design Decisions and Tradeoffs](#14-design-decisions-and-tradeoffs)
 
 ---
 
@@ -879,113 +870,139 @@ This is not automated model updating — it is information made available to the
 
 ## 14. Data Model
 
-### Core tables
+The database is SQLite (WAL mode) managed via SQLAlchemy ORM and Alembic migrations. UUIDs are generated in Python and stored as strings. JSON columns use SQLite's native JSON type. Knowledge base full-text search uses SQLite FTS5 — no external vector store is required at this scale.
 
-```sql
--- Heartbeat schedule
-CREATE TABLE heartbeats (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  fire_at TIMESTAMPTZ NOT NULL,
-  reason TEXT NOT NULL,
-  session_type TEXT NOT NULL,
-  context JSONB NOT NULL DEFAULT '{}',
-  status TEXT NOT NULL DEFAULT 'SCHEDULED',
-  spawned_by UUID REFERENCES heartbeats(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  started_at TIMESTAMPTZ,
-  completed_at TIMESTAMPTZ,
-  failure_reason TEXT
-);
-CREATE INDEX ON heartbeats (status, fire_at);
+The authoritative schema is in `littleman/db/models.py`. What follows is a readable summary.
 
--- Persisted world model (single row, updated in-place)
-CREATE TABLE world_model (
-  id INT PRIMARY KEY DEFAULT 1,
-  wallet_balance_usdc NUMERIC(18,6) NOT NULL,
-  available_balance_usdc NUMERIC(18,6) NOT NULL,
-  total_pnl NUMERIC(18,6) NOT NULL DEFAULT 0,
-  last_full_scan TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  extended_state JSONB NOT NULL DEFAULT '{}'
-);
+### Agent operation tables
 
--- Open and historical positions
-CREATE TABLE positions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  market_id TEXT NOT NULL,
-  market_title TEXT NOT NULL,
-  direction TEXT NOT NULL,          -- YES | NO
-  size_usdc NUMERIC(18,6) NOT NULL,
-  entry_price NUMERIC(6,4) NOT NULL,
-  predicted_probability NUMERIC(6,4) NOT NULL,
-  strategy_id UUID REFERENCES strategies(id),
-  status TEXT NOT NULL DEFAULT 'OPEN',
-  outcome TEXT,                     -- WIN | LOSS | NULL
-  pnl NUMERIC(18,6),
-  placed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  resolved_at TIMESTAMPTZ,
-  polymarket_order_id TEXT
-);
+```
+heartbeats
+  id            TEXT (UUID, PK)
+  fire_at       DATETIME (timezone-aware)
+  reason        TEXT
+  session_type  TEXT    — SCHEDULED | RUNNING | DONE | FAILED | CANCELLED
+  context       JSON    — structured data the session reads on wake
+  status        TEXT    — SCHEDULED | RUNNING | DONE | FAILED | CANCELLED
+  spawned_by    TEXT    — FK → heartbeats.id (lineage graph for cascade audit)
+  created_at    DATETIME
+  started_at    DATETIME (nullable)
+  completed_at  DATETIME (nullable)
+  failure_reason TEXT (nullable)
 
--- Goal tree nodes
-CREATE TABLE strategies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  parent_id UUID REFERENCES strategies(id),
-  node_type TEXT NOT NULL,          -- GOAL | STRATEGY | RESEARCH_TASK
-  title TEXT NOT NULL,
-  rationale TEXT,
-  status TEXT NOT NULL DEFAULT 'ACTIVE',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  metadata JSONB NOT NULL DEFAULT '{}'
-);
+agent_sessions
+  id                TEXT (UUID, PK)
+  heartbeat_id      TEXT (nullable, FK → heartbeats.id)
+  directive         JSON (nullable)   — the directive that drove this session
+  tasks_created     INTEGER
+  tasks_completed   INTEGER
+  bets_placed       INTEGER
+  research_calls    INTEGER
+  heartbeats_created INTEGER
+  started_at        DATETIME
+  ended_at          DATETIME (nullable)
+  outcome_summary   TEXT (nullable)
 
--- Knowledge base
-CREATE TABLE kb_entries (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  topic TEXT NOT NULL,
-  content TEXT NOT NULL,
-  source_urls TEXT[],
-  confidence TEXT NOT NULL DEFAULT 'MEDIUM',
-  gathered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  expires_at TIMESTAMPTZ,
-  linked_market_ids TEXT[],
-  embedding VECTOR(1536)            -- for semantic search; requires pgvector
-);
-CREATE INDEX ON kb_entries (topic);
-CREATE INDEX ON kb_entries USING ivfflat (embedding vector_cosine_ops);
+positions
+  id                    TEXT (UUID, PK)
+  market_id             TEXT
+  market_title          TEXT
+  direction             TEXT    — YES | NO
+  size_usdc             NUMERIC(18,6)
+  entry_price           NUMERIC(6,4)
+  predicted_probability NUMERIC(6,4)
+  strategy_id           TEXT (nullable, FK → strategies.id)
+  status                TEXT    — OPEN | CLOSED | PENDING_RESOLUTION
+  outcome               TEXT (nullable)   — WIN | LOSS
+  pnl                   NUMERIC(18,6) (nullable)
+  placed_at             DATETIME
+  resolved_at           DATETIME (nullable)
+  polymarket_order_id   TEXT (nullable)
 
--- Observation log
-CREATE TABLE observations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id UUID NOT NULL,
-  heartbeat_id UUID REFERENCES heartbeats(id),
-  action_type TEXT NOT NULL,
-  action_detail JSONB NOT NULL,
-  rationale TEXT,
-  predicted_probability NUMERIC(6,4),
-  market_price_at_action NUMERIC(6,4),
-  outcome TEXT,
-  actual_probability NUMERIC(6,4),
-  pnl NUMERIC(18,6),
-  logged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  resolved_at TIMESTAMPTZ
-);
+strategies                         — goal tree nodes
+  id          TEXT (UUID, PK)
+  parent_id   TEXT (nullable, FK → strategies.id)
+  node_type   TEXT    — GOAL | STRATEGY | RESEARCH_TASK
+  title       TEXT
+  rationale   TEXT (nullable)
+  status      TEXT    — ACTIVE | PAUSED | COMPLETED | ABANDONED
+  created_at  DATETIME
+  updated_at  DATETIME (nullable)
+  metadata    JSON
 
--- Session audit log
-CREATE TABLE sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  heartbeat_id UUID REFERENCES heartbeats(id),
-  directive JSONB,
-  tasks_created INT DEFAULT 0,
-  tasks_completed INT DEFAULT 0,
-  bets_placed INT DEFAULT 0,
-  research_calls INT DEFAULT 0,
-  heartbeats_created INT DEFAULT 0,
-  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  ended_at TIMESTAMPTZ,
-  outcome_summary TEXT
-);
+kb_entries                         — accumulated research knowledge base
+  id                TEXT (UUID, PK)
+  topic             TEXT (indexed)
+  content           TEXT
+  source_urls       JSON    — list of URL strings
+  confidence        TEXT    — HIGH | MEDIUM | LOW
+  gathered_at       DATETIME
+  expires_at        DATETIME (nullable)
+  linked_market_ids JSON    — list of market ID strings
+  (full-text search via SQLite FTS5 virtual table — no vector store needed)
+
+observations                       — per-action records for calibration
+  id                      TEXT (UUID, PK)
+  session_id              TEXT
+  heartbeat_id            TEXT (nullable, FK → heartbeats.id)
+  action_type             TEXT    — BET | PASS | MONITOR | RESEARCH
+  action_detail           JSON
+  rationale               TEXT (nullable)
+  predicted_probability   NUMERIC(6,4) (nullable)
+  market_price_at_action  NUMERIC(6,4) (nullable)
+  outcome                 TEXT (nullable)
+  actual_probability      NUMERIC(6,4) (nullable)
+  pnl                     NUMERIC(18,6) (nullable)
+  logged_at               DATETIME
+  resolved_at             DATETIME (nullable)
+
+world_model                        — single row, updated in-place each session
+  id                      INTEGER (PK, always 1)
+  wallet_balance_usdc     NUMERIC(18,6)
+  available_balance_usdc  NUMERIC(18,6)
+  total_pnl               NUMERIC(18,6)
+  last_full_scan          DATETIME (nullable)
+  updated_at              DATETIME (nullable)
+  extended_state          JSON    — overflow fields (open_positions, calibration, etc.)
+```
+
+### Chat and operator tables
+
+```
+chat_sessions                      — user↔LLM conversations + the Main agent narration session
+  id          TEXT (PK)            — "main" is the reserved ID for the agent narration feed
+  title       TEXT
+  created_at  DATETIME
+  updated_at  DATETIME
+
+chat_messages
+  id            TEXT (UUID, PK)
+  session_id    TEXT (FK → chat_sessions.id, CASCADE DELETE)
+  role          TEXT    — user | assistant | tool
+  content       TEXT (nullable)
+  thinking      TEXT (nullable)   — extended thinking block (if model supports it)
+  tool_calls    JSON (nullable)   — [{id, name, args}]
+  tool_call_id  TEXT (nullable)   — for tool result messages
+  tool_name     TEXT (nullable)
+  created_at    DATETIME
+
+agent_guidance                     — operator-to-agent guidance injection
+  id           TEXT (UUID, PK)
+  text         TEXT
+  created_at   DATETIME
+  consumed_at  DATETIME (nullable)   — set when passed to a session; pending if null
+
+llm_configs                        — LLM provider config (editable via Settings UI)
+  id            TEXT (UUID, PK)
+  name          TEXT (unique)
+  provider      TEXT    — anthropic | openai | ollama | litellm
+  model         TEXT    — full LiteLLM model string
+  api_key       TEXT (nullable)
+  base_url      TEXT (nullable)
+  is_primary    BOOLEAN
+  is_secondary  BOOLEAN
+  extra_params  JSON
+  created_at    DATETIME
 ```
 
 ---

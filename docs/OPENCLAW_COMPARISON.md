@@ -27,7 +27,7 @@ original relationship and [ADR 0001](adr/0001-mental-construct-not-generational-
 | Queue modes | steer / followup / collect / interrupt for mid-run messages | Chat handles messages sequentially | OpenClaw ahead (not yet needed) |
 | Financial risk | N/A (general purpose) | Hard-limit risk governor, circuit breaker, Kelly sizing | Littleman-only |
 
-## Adopted as a result (commit 1762f02)
+## Adopted
 
 1. **Cross-process session lock** (`agent/lock.py`) — OpenClaw's file-based write lock is direct
    evidence for ADR 0001. Now `run_session` holds an O_EXCL lockfile (PID + acquired-at, stale
@@ -38,6 +38,13 @@ original relationship and [ADR 0001](adr/0001-mental-construct-not-generational-
    it). Mirrors OpenClaw's `metadata.openclaw` gating.
 3. **Context budget** (`meta/construct.py`) — per-doc and total caps on the injected construct;
    append-only `REFLECTION.md` truncated to its tail. Mirrors `bootstrapMaxChars`.
+4. **Stale-RUNNING session cleanup** (`heartbeat/store.py`, `heartbeat/scheduler.py`) — OpenClaw
+   detects runs that have been active too long and marks them failed. Without this, a heartbeat
+   whose session process crashed (OOM, SIGKILL, machine reboot) without marking itself DONE
+   would stay in RUNNING forever and silently halt the agent. Now each scheduler tick calls
+   `get_stale_running_heartbeats(timeout_minutes)` and marks those heartbeats FAILED, triggering
+   the existing exponential-backoff retry. Configurable via `STALE_SESSION_TIMEOUT_MINUTES`
+   (default 30 min).
 
 ## Deliberately not adopted (yet)
 
@@ -53,5 +60,6 @@ original relationship and [ADR 0001](adr/0001-mental-construct-not-generational-
 OpenClaw is the more mature *platform* (breadth, ecosystem, channels, sandboxing). Littleman is
 the more sophisticated *autonomous agent* for its niche: the dynamic heartbeat cascade and the
 Mental Construct give it self-direction OpenClaw's static `HEARTBEAT.md` does not attempt. After
-this hardening pass, littleman matches OpenClaw on the concurrency-safety and context-budget
-fundamentals that actually protect a money-handling agent.
+four hardening passes (lock, skill gating, context budget, stale-run cleanup), littleman matches
+OpenClaw on the concurrency-safety and context-budget fundamentals that actually protect a
+money-handling agent.

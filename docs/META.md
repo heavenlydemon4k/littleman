@@ -7,19 +7,30 @@ is built vs planned, this says so, so the doc tracks reality rather than aspirat
 
 ## 1. Identity
 
-Littleman is an **LLM-native autonomous agent platform**. It is not a chatbot with tools, not a
-task executor waiting for prompts, and not a traditional agent with a human in the
-meta-cognitive loop. The LLM is the **director, orchestrator, and cognitive engine**, operating
-through self-generated intent, self-authored scheduling, and explicit self-referential models.
+Littleman is a **general-purpose, LLM-native autonomous agent platform** — an OpenClaw-class
+system for building agents that direct themselves. It is **not** a Polymarket bot, not a
+chatbot with tools, not a task executor waiting for prompts, and not a traditional agent with a
+human in the meta-cognitive loop. The LLM is the **director, orchestrator, and cognitive
+engine**, operating through self-generated intent, self-authored scheduling, and explicit
+self-referential models.
+
+**The platform is domain-agnostic.** What an instance of littleman *does* is defined entirely by
+its **application**: a `SOUL.md` (prime directive, identity, domain knowledge), a **skill pack**
+(the capabilities it can call), and optional domain config (limits, budgets, credentials). Swap
+those three and the same engine becomes a research assistant, an operations monitor, a content
+pipeline, a personal-ops agent — or a prediction-market trader. Nothing in the meta/macro/task
+core, the heartbeat system, the mental construct, or the runtime is trading-specific.
+
+**Polymarket trading is a reference application, not the product** — the first concrete proof
+that the platform works end-to-end, and the source of the example skills in `docs/applications/`.
+Treat every trading-shaped concept below (risk governor, budget, positions) as belonging to
+*that application*, not the platform; another application simply would not register them. See
+[ADR 0002](adr/0002-littleman-is-a-platform.md).
 
 **The human role is constraint and identity, not direction.** The human provides the prime
-directive, hard limits, and capability registry. The agent handles situational awareness,
-intent formation, planning, scheduling, execution, calibration, and self-modification of its
-own internal models.
-
-**Polymarket trading is the first application, not the product.** The platform is
-domain-agnostic; an application is `SOUL.md` + a skill pack + optional domain config (see
-[ADR 0002](adr/0002-littleman-is-a-platform.md)).
+directive, hard limits, and capability registry — typically through onboarding (§8). The agent
+handles situational awareness, intent formation, planning, scheduling, execution, calibration,
+and self-modification of its own internal models.
 
 It is inspired by [OpenClaw](https://github.com/openclaw/openclaw) and diverges where it
 matters — most of all by making the heartbeat **dynamic and self-authored** rather than a
@@ -154,12 +165,32 @@ complexity lives in the cognition; the infrastructure stays boring.
 
 ---
 
-## 8. Applications
+## 8. Applications & onboarding
 
-An application = `SOUL.md` + skill pack + optional domain config. The flagship is **Polymarket
-trading** (`docs/applications/polymarket.md`). The same platform could run a research pipeline,
-a monitoring/triage system, or a content operation — anywhere work is ongoing and irregular and
-the agent must form its own view of what matters.
+An **application** = `SOUL.md` (prime directive + domain knowledge) + a **skill pack** + optional
+domain config. The same platform can run a research pipeline, an operations/triage monitor, a
+content operation, a personal-ops agent, or a prediction-market trader — anywhere work is
+ongoing and irregular and the agent must form its own view of what matters. **Polymarket trading
+is the reference application** (`docs/applications/polymarket.md`), not the product.
+
+### Onboarding (how an application is created)
+
+A new instance is configured through onboarding, which produces the application artifacts. Two
+paths, sharing a common first step:
+
+1. **Shared welcome** (domain-agnostic): *what should we call you* (display name) → *what should
+   we do* (the purpose/prime directive, free text) → *LLM provider → model*.
+2. **Branch on details & constraints:**
+   - **Guided** — a short questionnaire (objective & success criteria; operating constraints /
+     red lines; autonomy & check-in cadence; and any domain config the purpose implies — e.g. a
+     budget/wallet only if the purpose involves money). An LLM compiles the answers into a
+     `SOUL.md` + initial limits, then runs **First Light**.
+   - **Custom** — drops the power user straight into editing `SOUL.md` and config directly.
+
+Onboarding is **not** Polymarket-specific: the purpose the user types determines what kind of
+agent it is, and domain-specific questions (wallet, budget, risk) appear only when the purpose
+warrants them. First Light (§3) then turns the resulting `SOUL.md` into the live mental
+construct.
 
 ---
 
