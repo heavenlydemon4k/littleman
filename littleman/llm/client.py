@@ -10,6 +10,12 @@ def load_soul() -> str:
     return "You are Littleman, an autonomous prediction market trading agent."
 
 
+def load_agent_manual() -> str:
+    """The platform operating manual (AGENT.md) — how a littleman agent works."""
+    p = settings.workspace_dir / "AGENT.md"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
 def build_tool_definitions() -> list[dict]:
     skills_path = settings.workspace_dir / "SKILLS.md"
     if not skills_path.exists():

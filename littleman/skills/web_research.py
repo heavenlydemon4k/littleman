@@ -37,6 +37,47 @@ async def _fetch_one(client: httpx.AsyncClient, url: str) -> dict[str, Any]:
         return {"url": url, "error": str(e)}
 
 
+async def _duckduckgo_search(query: str, max_results: int) -> dict:
+    """Keyless web search via DuckDuckGo's HTML endpoint (no API key needed)."""
+    import re
+    from urllib.parse import parse_qs, unquote, urlparse
+
+    try:
+        async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0 littleman/0.1"}) as client:
+            resp = await client.post(
+                "https://html.duckduckgo.com/html/",
+                data={"q": query},
+                timeout=_FETCH_TIMEOUT,
+                follow_redirects=True,
+            )
+            resp.raise_for_status()
+            html = resp.text
+    except httpx.HTTPError as e:
+        return {"query": query, "error": str(e), "results": [], "provider": "duckduckgo"}
+
+    results: list[dict] = []
+    # Each result: an anchor with class result__a (title + link) and a result__snippet.
+    link_re = re.compile(r'<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', re.S)
+    snip_re = re.compile(r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>', re.S)
+    snippets = [_strip_html(s) for s in snip_re.findall(html)]
+    for i, (href, title) in enumerate(link_re.findall(html)):
+        # DDG wraps the real URL in a redirect with a uddg= param.
+        real = href
+        if "uddg=" in href:
+            qs = parse_qs(urlparse(href).query)
+            if qs.get("uddg"):
+                real = unquote(qs["uddg"][0])
+        results.append({
+            "title": _strip_html(title),
+            "url": real,
+            "excerpt": snippets[i] if i < len(snippets) else "",
+        })
+        if len(results) >= max_results:
+            break
+
+    return {"query": query, "results": results, "count": len(results), "provider": "duckduckgo"}
+
+
 def _strip_html(html: str) -> str:
     import re
 
@@ -67,14 +108,8 @@ def make_web_research_skills() -> list[dict]:
     ) -> dict:
         api_key = getattr(settings, "search_api_key", "") or ""
         if not api_key:
-            return {
-                "query": query,
-                "error": (
-                    "No search provider configured (SEARCH_API_KEY unset). "
-                    "Use browse_url with a known source URL instead, or configure a provider."
-                ),
-                "results": [],
-            }
+            # Keyless fallback so the agent always has web search.
+            return await _duckduckgo_search(query, max_results)
         # Tavily-compatible request shape; swap endpoint via settings if needed.
         endpoint = getattr(settings, "search_endpoint", "https://api.tavily.com/search")
         payload = {
@@ -105,7 +140,7 @@ def make_web_research_skills() -> list[dict]:
         {
             "name": "web_search",
             "fn": web_search,
-            "description": "Search the web for information relevant to a market or topic.",
+            "description": "Search the web for information relevant to a topic (keyless DuckDuckGo by default; Tavily if a key is set).",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -116,7 +151,6 @@ def make_web_research_skills() -> list[dict]:
                 "required": ["query"],
             },
             "cost": "MEDIUM",
-            "requires": ["search_api_key"],
         },
         {
             "name": "browse_url",

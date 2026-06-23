@@ -56,8 +56,8 @@ async def status(db: AsyncSession = Depends(get_db)):
             else "not configured — balance is the simulated budget, no live wallet",
         },
         "search": {
-            "ok": bool(cfg.search_api_key),
-            "detail": "configured" if cfg.search_api_key else "not set — web_search disabled",
+            "ok": True,
+            "detail": "Tavily" if cfg.search_api_key else "DuckDuckGo (keyless)",
         },
     }
 
