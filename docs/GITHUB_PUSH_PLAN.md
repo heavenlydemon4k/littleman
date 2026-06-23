@@ -27,7 +27,7 @@ git check-ignore .env                      # must print ".env"
 git ls-files | grep -E '(^|/)\.env$'       # must print NOTHING
 
 # 2. Scan the whole history for the key fragment and common secret patterns
-git log -p | grep -i "sk-pSDa"             # must print NOTHING (key fragment)
+git log -p | grep -i "sk-"                 # must print no real key prefixes
 git log -p | grep -iE "api_key|secret|private_key|sk-[A-Za-z0-9]{20}" | head
 
 # 3. Scan tracked files for secrets right now

@@ -53,15 +53,22 @@ estimation, Kelly sizing, a deterministic risk governor, and a closed observatio
 ## Quick start
 
 ```bash
-git clone ...
-cd littleman
-cp .env.example .env
-# edit .env: add API keys, set budget, choose LLM provider
-make install
-make migrate
-make session -- --boot   # first run; agent creates its own future heartbeats
-make scheduler           # leave running; fires sessions when heartbeats are due
+git clone <repo> littleman && cd littleman
+cp .env.example .env                       # optional: most config is set during onboarding in the UI
+
+python -m venv .venv
+.venv/Scripts/python -m pip install -e .   # Windows; on macOS/Linux: .venv/bin/pip
+cd frontend && npm install && npm run build && cd ..
+
+.venv/Scripts/python -m uvicorn littleman.api.app:app --port 8000
+# open http://localhost:8000 → the first-run onboarding starts automatically.
 ```
+
+Onboarding (name → purpose → provider/model → guided or custom) configures the agent and lands
+you in a chat. Press **Begin onboarding** there to run First Light: the agent reads its files,
+authors its own cognition, and greets you. After that it is dormant until you message it or turn
+on the autonomous scheduler. Run the autonomous loop with `python -m littleman scheduler`
+(it only fires when you flip Autonomous on in the dashboard).
 
 ---
 
@@ -72,7 +79,9 @@ make scheduler           # leave running; fires sessions when heartbeats are due
 - [`docs/OPENCLAW_COMPARISON.md`](docs/OPENCLAW_COMPARISON.md) — measured against OpenClaw, with what was adopted
 - [`docs/applications/polymarket.md`](docs/applications/polymarket.md) — the Polymarket application + live-trading integration plan
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — project structure, stack rationale, workflow, testing
+- [`docs/design/`](docs/design/) — working design notes (onboarding & UI, First Light self-onboarding, the mental-workspace lifecycle)
 - [`docs/adr/`](docs/adr/) — architecture decision records (serial execution; platform vs application)
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — current status, where development paused, and the forward plan
 - [`docs/GITHUB_PUSH_PLAN.md`](docs/GITHUB_PUSH_PLAN.md) — secret-hygiene checklist before pushing
 
 ---
@@ -97,16 +106,19 @@ against one consistent view.
 
 ## Status
 
-The platform runs end-to-end against a live LLM (verified on Kimi/Moonshot): First Light →
-situation → directive → strategy/task planning → risk-gated execution → world-model update →
-self-scheduled heartbeats, all visible in the UI. **51 tests passing.**
+Runs end-to-end against a live LLM (verified on Kimi/Moonshot). What works today:
 
-The flagship Polymarket application does live market **reads** today; live order **signing** is
-the remaining piece — bets are sized, risk-checked, recorded, and logged, but not yet posted
-on-chain. The integration plan is in [`docs/applications/polymarket.md`](docs/applications/polymarket.md).
+- **Onboarding** (compulsory first-run) → **agentic First Light**: the agent reads its operating
+  manual + identity + onboarding answers and authors its own cognition through its skills.
+- **The full wake cycle**: situate → directive → strategy/tasks → ReAct skill execution →
+  reflect → **maintain** (re-rank priorities) → self-schedule the next heartbeat.
+- **Living mental workspace** read and maintained every wake; **safe-by-default autonomy**
+  (manual unless toggled on); **keyless web search**; **22 skills** including the agent's own
+  file read/write.
+- **Polymarket reference application**: live market reads + real wallet balance/position
+  reconcile (read-only, no spend). Order **signing** is the one remaining stub.
+- A **React UI**: onboarding, chat (with the agent's Main session), agent dashboard, workspace
+  editor, settings (LLM runtime + monochrome/customizable theme).
 
-```bash
-python -m venv .venv && .venv/Scripts/python -m pip install -e .   # or: make install
-.venv/Scripts/python -m uvicorn littleman.api.app:app --port 8000  # serves UI + API
-# open http://localhost:8000 → Agent tab. Autonomous is OFF by default; click Run to drive a turn.
-```
+**65 tests passing.** Current state, where development paused, and the forward plan:
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
