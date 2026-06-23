@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from littleman.api.routes import agent, chat, settings, workspace
+from littleman.api.routes import agent, chat, onboarding, settings, workspace
 from littleman.db.connection import init_db
 
 
@@ -35,6 +35,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(workspace.router, prefix="/api")
 app.include_router(agent.router, prefix="/api")
+app.include_router(onboarding.router, prefix="/api")
 
 
 @app.get("/api/health")

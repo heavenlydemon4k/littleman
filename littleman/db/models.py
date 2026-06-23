@@ -170,6 +170,21 @@ class AgentGuidance(Base):
     consumed_at = Column(DateTime(timezone=True), nullable=True)
 
 
+# ── Operator profile / onboarding ─────────────────────────────────────────────
+
+class Profile(Base):
+    """Single-row operator profile + onboarding state (id is always 1)."""
+
+    __tablename__ = "profile"
+
+    id = Column(Integer, primary_key=True, default=1)
+    display_name = Column(String, nullable=True)
+    purpose = Column(Text, nullable=True)              # the agent's prime directive
+    onboarding_path = Column(String, nullable=True)    # "guided" | "custom"
+    onboarded_at = Column(DateTime(timezone=True), nullable=True)  # null = not yet onboarded
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
 # ── LLM provider config ───────────────────────────────────────────────────────
 
 class LLMConfig(Base):
