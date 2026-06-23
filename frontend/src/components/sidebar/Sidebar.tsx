@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Plus, Trash2, MessageSquare, Settings, FolderOpen, Bot, Activity, Radio } from "lucide-react";
+import { Plus, Trash2, MessageSquare, Settings, FolderOpen, Bot, Activity, Radio, Plug } from "lucide-react";
 import clsx from "clsx";
 import type { ChatSession } from "../../types";
 
@@ -135,6 +135,13 @@ export function Sidebar() {
 
       {/* Bottom nav */}
       <div className="border-t border-border p-2">
+        <Link
+          to="/connections"
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-surface-2 hover:text-white transition-colors"
+        >
+          <Plug size={15} />
+          Connections
+        </Link>
         <Link
           to="/workspace"
           className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-surface-2 hover:text-white transition-colors"

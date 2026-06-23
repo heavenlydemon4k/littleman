@@ -136,7 +136,7 @@ export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Pro
           )}
         </div>
         <p className="mt-1.5 text-center text-xs text-muted">
-          littleman can make mistakes. Verify bets before they execute.
+          littleman can make mistakes. Review its actions.
         </p>
       </div>
     </div>

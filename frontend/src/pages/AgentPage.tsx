@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Play, Power, Clock, RefreshCw, Loader2, Wallet, TrendingUp,
-  ShieldAlert, Activity, GitBranch, BookOpen, MessageSquare,
-  Trash2, ChevronDown, ChevronRight, Zap, Eye, X, Plus,
-  ArrowRight, BarChart2,
+  Play, Power, Clock, RefreshCw, Loader2, Activity, GitBranch,
+  MessageSquare, ChevronDown, ChevronRight, Zap, Eye, X, Plus,
+  ArrowRight, Target, ListChecks,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -107,18 +106,6 @@ interface SkillItem {
   available: boolean;
 }
 
-interface PositionRow {
-  id: string;
-  market_title: string;
-  direction: string;
-  size_usdc: number;
-  entry_price: number;
-  predicted_probability: number;
-  status: string;
-  outcome: string | null;
-  pnl: number | null;
-}
-
 interface Runtime {
   mode: string;
   primary_model: string;
@@ -145,7 +132,7 @@ const SESSION_TYPE_COLORS: Record<string, string> = {
   FIRST_LIGHT: "bg-green-500/20 text-green-300",
 };
 
-type TabId = "overview" | "activity" | "construct" | "skills" | "positions";
+type TabId = "overview" | "activity" | "construct" | "skills";
 
 // -- Main Component ----------------------------------------------------------
 
@@ -162,7 +149,6 @@ export function AgentPage() {
   const [construct, setConstruct] = useState<Record<string, string>>({});
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const [skills, setSkills] = useState<SkillItem[]>([]);
-  const [positions, setPositions] = useState<PositionRow[]>([]);
 
   const [focus, setFocus] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -193,14 +179,13 @@ export function AgentPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const [s, h, se, c, rt, sk, pos] = await Promise.all([
+      const [s, h, se, c, rt, sk] = await Promise.all([
         fetch("/api/agent/status").then((r) => r.json()),
         fetch("/api/agent/heartbeats?limit=20").then((r) => r.json()),
         fetch("/api/agent/sessions?limit=30").then((r) => r.json()),
         fetch("/api/agent/construct").then((r) => r.json()),
         fetch("/api/settings/runtime").then((r) => r.json()),
         fetch("/api/agent/skills").then((r) => r.json()),
-        fetch("/api/agent/positions").then((r) => r.json()),
       ]);
       setStatus(s);
       setHeartbeats(Array.isArray(h) ? h : []);
@@ -208,7 +193,6 @@ export function AgentPage() {
       setConstruct(c.documents || {});
       setRuntime(rt);
       setSkills(Array.isArray(sk) ? sk : []);
-      setPositions(Array.isArray(pos) ? pos : []);
       setError("");
     } catch (e) {
       setError(String(e));
@@ -363,11 +347,6 @@ export function AgentPage() {
           <div className="flex items-center gap-2">
             <Activity size={18} className="text-blue-400" />
             <h1 className="font-mono text-lg font-semibold text-white">Agent</h1>
-            {status?.application && (
-              <span className="rounded bg-surface-3 px-2 py-0.5 text-xs text-muted">
-                app: <span className="text-blue-300">{status.application}</span>
-              </span>
-            )}
             {status && !status.initialised && (
               <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">
                 not bootstrapped
@@ -375,9 +354,6 @@ export function AgentPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Btn onClick={() => action("/api/agent/reconcile", "reconcile")} busy={busy === "reconcile"} icon={Wallet}>
-              Reconcile
-            </Btn>
             <Btn onClick={() => action("/api/agent/run-due", "due")} busy={busy === "due"} icon={Clock}>
               Fire due
             </Btn>
@@ -460,9 +436,6 @@ export function AgentPage() {
           <Tab id="skills" active={activeTab} onClick={setActiveTab} icon={Zap}>
             Skills
           </Tab>
-          <Tab id="positions" active={activeTab} onClick={setActiveTab} icon={BarChart2} badge={positions.filter(p => p.status === "OPEN").length || undefined}>
-            Positions
-          </Tab>
         </div>
 
         {/* TAB: OVERVIEW */}
@@ -492,28 +465,13 @@ export function AgentPage() {
               </div>
             )}
 
-            {status && (
-              <>
-                <p className="mb-2 text-[11px] uppercase tracking-wider text-muted/70">
-                  {status.application} · application state
-                </p>
-                <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <Stat icon={Wallet} label={status.balance_is_simulated ? "Balance (sim)" : "Wallet"} value={`$${status.wallet_balance_usdc.toFixed(2)}`} />
-                  <Stat icon={TrendingUp} label="Total P&L" value={`${status.total_pnl >= 0 ? "+" : ""}$${status.total_pnl.toFixed(2)}`} tone={status.total_pnl >= 0 ? "pos" : "neg"} />
-                  <Stat icon={Activity} label="Exposure" value={`$${status.open_exposure_usdc.toFixed(2)} (${status.open_positions})`} />
-                  <Stat icon={ShieldAlert} label="Circuit breaker" value={status.circuit_breaker_active ? "TRIPPED" : "clear"} tone={status.circuit_breaker_active ? "neg" : "pos"} />
-                </div>
-                <div className="mb-5 flex flex-wrap items-center gap-2">
-                  <ConnChip label="LLM" conn={status.connections.llm} />
-                  <ConnChip label="Wallet" conn={status.connections.polymarket_wallet} />
-                  <ConnChip label="Search" conn={status.connections.search} />
-                  {status.balance_is_simulated && (
-                    <span className="text-[11px] text-amber-400/80">
-                      balance is the simulated budget -- no live Polymarket wallet connected
-                    </span>
-                  )}
-                </div>
-              </>
+            {/* Agent-authored state: written by the agent itself (DIRECTIVE.md / PRIORITIES.md
+                via its construct skills), never hardcoded placeholders. */}
+            {status?.initialised && (
+              <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <AuthoredCard title="Current directive" icon={Target} body={construct["DIRECTIVE.md"]} empty="No directive yet." />
+                <AuthoredCard title="Priorities" icon={ListChecks} body={summarise(construct["PRIORITIES.md"])} empty="No priorities yet." />
+              </div>
             )}
 
             {status?.next_heartbeat && (
@@ -846,60 +804,6 @@ export function AgentPage() {
           </div>
         )}
 
-        {/* TAB: POSITIONS */}
-        {activeTab === "positions" && (
-          <div>
-            {positions.length === 0 && <Empty>No positions yet.</Empty>}
-            {positions.length > 0 && (
-              <div className="rounded-xl border border-border bg-surface-1 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead className="border-b border-border bg-surface-2">
-                      <tr>
-                        <th className="px-4 py-2 text-left font-mono text-[10px] uppercase tracking-wider text-muted">Market</th>
-                        <th className="px-3 py-2 text-left font-mono text-[10px] uppercase tracking-wider text-muted">Dir</th>
-                        <th className="px-3 py-2 text-right font-mono text-[10px] uppercase tracking-wider text-muted">Size</th>
-                        <th className="px-3 py-2 text-right font-mono text-[10px] uppercase tracking-wider text-muted">Entry</th>
-                        <th className="px-3 py-2 text-right font-mono text-[10px] uppercase tracking-wider text-muted">Est. prob</th>
-                        <th className="px-3 py-2 text-left font-mono text-[10px] uppercase tracking-wider text-muted">Status</th>
-                        <th className="px-3 py-2 text-right font-mono text-[10px] uppercase tracking-wider text-muted">P&L</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {positions.map((p) => (
-                        <tr key={p.id} className="border-b border-surface-3 last:border-0 hover:bg-surface-2/30">
-                          <td className="max-w-[280px] truncate px-4 py-2.5 text-white">{p.market_title}</td>
-                          <td className={clsx("px-3 py-2.5 font-mono",
-                            p.direction === "YES" ? "text-green-400" : "text-red-400")}>
-                            {p.direction}
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-mono text-white">${p.size_usdc.toFixed(2)}</td>
-                          <td className="px-3 py-2.5 text-right font-mono text-muted">{(p.entry_price * 100).toFixed(0)}%</td>
-                          <td className="px-3 py-2.5 text-right font-mono text-muted">{(p.predicted_probability * 100).toFixed(0)}%</td>
-                          <td className="px-3 py-2.5">
-                            <span className={clsx("rounded px-1.5 py-0.5 font-mono text-[10px]",
-                              p.status === "OPEN" ? "bg-blue-500/20 text-blue-300"
-                              : p.status === "WON" ? "bg-green-500/20 text-green-300"
-                              : p.status === "LOST" ? "bg-red-500/20 text-red-300"
-                              : "bg-surface-4 text-muted")}>
-                              {p.status}
-                            </span>
-                          </td>
-                          <td className={clsx("px-3 py-2.5 text-right font-mono",
-                            p.pnl == null ? "text-muted"
-                            : p.pnl >= 0 ? "text-green-400" : "text-red-400")}>
-                            {p.pnl != null ? `${p.pnl >= 0 ? "+" : ""}$${p.pnl.toFixed(2)}` : "--"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
       </div>
     </div>
   );
@@ -952,23 +856,36 @@ function Btn({
   );
 }
 
-function Stat({
-  icon: Icon, label, value, tone,
+function AuthoredCard({
+  title, icon: Icon, body, empty,
 }: {
-  icon: typeof Wallet; label: string; value: string; tone?: "pos" | "neg";
+  title: string; icon: typeof Activity; body: string | undefined; empty: string;
 }) {
+  const content = (body || "").trim();
   return (
-    <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
-      <div className="mb-1 flex items-center gap-1.5 text-muted">
-        <Icon size={12} />
-        <span className="text-[10px] uppercase tracking-wider">{label}</span>
+    <div className="rounded-xl border border-border bg-surface-1 p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <Icon size={13} className="text-blue-400" />
+        <span className="font-mono text-xs font-semibold text-white">{title}</span>
+        <span className="ml-auto text-[10px] text-muted/60">agent-written</span>
       </div>
-      <p className={clsx("font-mono text-sm font-medium",
-        tone === "pos" ? "text-green-400" : tone === "neg" ? "text-red-400" : "text-white")}>
-        {value}
-      </p>
+      {content ? (
+        <pre className="max-h-44 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-muted">
+          {content}
+        </pre>
+      ) : (
+        <p className="text-xs italic text-muted/60">{empty}</p>
+      )}
     </div>
   );
+}
+
+// Pull the "## Current Summary" section out of a construct doc, else truncate.
+function summarise(md: string | undefined): string {
+  if (!md) return "";
+  const m = md.match(/##\s*Current Summary\s*([\s\S]*?)(?:\n##\s|\n#\s|$)/i);
+  if (m) return m[1].trim();
+  return md.length > 500 ? md.slice(0, 500) + "\n…" : md;
 }
 
 function Panel({ title, icon: Icon, children }: { title: string; icon: typeof Clock; children: React.ReactNode }) {
@@ -985,21 +902,6 @@ function Panel({ title, icon: Icon, children }: { title: string; icon: typeof Cl
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="py-4 text-center text-xs text-muted">{children}</p>;
-}
-
-function ConnChip({ label, conn }: { label: string; conn: { ok: boolean; detail: string } }) {
-  return (
-    <span
-      title={conn.detail}
-      className={clsx(
-        "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]",
-        conn.ok ? "border-green-500/30 text-green-400" : "border-surface-4 text-muted"
-      )}
-    >
-      <span className={clsx("h-1.5 w-1.5 rounded-full", conn.ok ? "bg-green-400" : "bg-surface-4")} />
-      {label}: {conn.ok ? "connected" : "off"}
-    </span>
-  );
 }
 
 function Pill({ children, color }: { children: React.ReactNode; color: "green" | "blue" | "purple" }) {
@@ -1041,6 +943,3 @@ function fmt(iso: string | null): string {
   return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-// Unused imports kept to avoid breaking downstream if referenced
-const _unused = { BookOpen, Trash2 };
-void _unused;

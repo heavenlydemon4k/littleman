@@ -7,6 +7,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { AgentPage } from "./pages/AgentPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
+import { ConnectionsPage } from "./pages/ConnectionsPage";
 
 export default function App() {
   // First-run gate: onboarding is compulsory before the main app.
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/agent" element={<AgentPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:sessionId" element={<ChatPage />} />
+            <Route path="/connections" element={<ConnectionsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/workspace" element={<WorkspacePage />} />
           </Routes>
