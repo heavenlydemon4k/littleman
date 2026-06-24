@@ -150,7 +150,6 @@ export function AgentPage() {
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const [skills, setSkills] = useState<SkillItem[]>([]);
 
-  const [focus, setFocus] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -293,26 +292,6 @@ export function AgentPage() {
     }
   };
 
-  const runWithFocus = async () => {
-    setBusy("run");
-    setError("");
-    try {
-      const r = await fetch("/api/agent/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(focus.trim() ? { focus: focus.trim() } : {}),
-      });
-      const data = await r.json();
-      if (!r.ok) setError(data.detail || "run failed");
-      setFocus("");
-      await refresh();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const action = async (path: string, label: string) => {
     setBusy(label);
     setError("");
@@ -402,20 +381,6 @@ export function AgentPage() {
           </div>
         )}
 
-        {/* Run session */}
-        <div className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2">
-          <input
-            value={focus}
-            onChange={(e) => setFocus(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && runWithFocus()}
-            placeholder="Run a session with an optional focus, e.g. 'survey politics markets closing this week'..."
-            className="flex-1 bg-transparent text-sm text-white placeholder-muted outline-none"
-          />
-          <Btn onClick={runWithFocus} busy={busy === "run"} icon={Play}>
-            Run session
-          </Btn>
-        </div>
-
         {error && (
           <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
             {error}
@@ -490,7 +455,7 @@ export function AgentPage() {
             )}
 
             <Panel title="Heartbeat schedule" icon={Clock}>
-              {heartbeats.length === 0 && <Empty>No heartbeats yet -- bootstrap the agent with First Light above.</Empty>}
+              {heartbeats.length === 0 && <Empty>No heartbeats scheduled. The agent writes these for itself once it is running.</Empty>}
               {heartbeats.map((h) => (
                 <div key={h.id} className="border-b border-surface-3 py-2 last:border-0">
                   <div className="flex items-center justify-between gap-2">

@@ -5,6 +5,40 @@ source of truth for "what's done vs next".
 
 ---
 
+## ⚑ Recent handoff (platform UI generalization — DONE)
+
+Built, tested (65 green), and committed. Verified: tsc + production build clean; Agent dashboard
+shows only real/agent-authored data (no Polymarket placeholders); heartbeats `[]` on a clean DB;
+`/skills/{name}/doc` returns rich content for every skill; Connections tab carries the
+integrations. Heartbeats confirmed not to auto-prompt the LLM (gated by the Autonomous toggle,
+default off).
+
+**What this pass changed (de-Polymarket the platform UI):**
+- `frontend/src/pages/ConnectionsPage.tsx` (new) + `App.tsx` route + `Sidebar.tsx` "Connections"
+  (Plug) link — generic integrations view (LLM, web search, Polymarket wallet) with live status;
+  the wallet balance/positions/Reconcile moved here off the dashboard.
+- `frontend/src/pages/AgentPage.tsx` — removed the trading stat cards, connection chips, the
+  "app:" chip, the Reconcile button, the Positions tab, and the run-session text field; the
+  Overview now shows an **agent-authored** headline (`AuthoredCard` for the current DIRECTIVE and
+  PRIORITIES, pulled from the construct the agent writes via `write_construct`). Heartbeat empty
+  copy fixed.
+- `littleman/api/routes/agent.py` — `/skills/{name}/doc` now builds a rich doc from the registry
+  (description, params, cost, availability) + appends any topic doc, so no skill shows empty.
+- `frontend/src/components/chat/ChatInput.tsx` — generic disclaimer (no "bets").
+
+**Verified facts (so the next session does not re-investigate):**
+- Heartbeats do NOT auto-prompt the LLM by default: they fire only when `python -m littleman
+  scheduler` runs AND Autonomous is ON AND a heartbeat is due. The API/UI alone never fires them;
+  the dashboard's 5s poll is read-only.
+- `.env` holds a working Kimi/Moonshot key (`LLM_MODE=real`); it is gitignored — keep it, never
+  commit it.
+
+**Still pending after this:** push to a new GitHub repo (no remote yet; `gh` not installed — user
+creates the empty repo, then `git remote add origin … && git push -u origin main`); rotate the
+Kimi key before going public (it appeared in chat). Then resume the forward plan below.
+
+---
+
 ## Current status (built and verified)
 
 **Platform core**

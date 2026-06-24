@@ -195,11 +195,51 @@ async def skills():
 
 @router.get("/skills/{name}/doc")
 async def skill_doc(name: str):
-    """Return the on-demand documentation markdown for a named skill."""
+    """Documentation for a skill: built from its real registration (description, parameters,
+    cost, availability), with any matching topic doc appended. Never empty for a real skill."""
+    from littleman.skills.registry import get_registry
     from littleman.skills.skill_docs import read_skill_doc
 
-    content = await read_skill_doc(name)
-    return {"name": name, "content": content}
+    try:
+        reg = get_registry()
+    except RuntimeError:
+        from littleman.db.connection import AsyncSessionLocal
+        from littleman.skills.registry import build_registry
+
+        reg = build_registry(db_session_factory=AsyncSessionLocal)
+
+    s = reg._skills.get(name)  # noqa: SLF001 — internal read for the UI
+    if not s:
+        return {"name": name, "content": f"Unknown skill `{name}`."}
+
+    lines = [
+        f"# {s.name}",
+        "",
+        s.description,
+        "",
+        f"**Cost:** {s.cost}  ·  **Available:** {'yes' if s.available else 'no'}",
+    ]
+    if s.requires:
+        lines.append(f"**Requires config:** {', '.join(s.requires)}")
+
+    props = (s.parameters or {}).get("properties", {})
+    required = set((s.parameters or {}).get("required", []))
+    if props:
+        lines += ["", "## Parameters"]
+        for pname, spec in props.items():
+            req = " *(required)*" if pname in required else ""
+            ptype = spec.get("type", "")
+            pdesc = spec.get("description", "")
+            lines.append(f"- `{pname}`{req} — {ptype}{(': ' + pdesc) if pdesc else ''}")
+    else:
+        lines += ["", "_No parameters._"]
+
+    # Append a richer topic guide if one exists for this skill.
+    topic = await read_skill_doc(name)
+    if topic and not topic.startswith("No documentation"):
+        lines += ["", "---", "", topic]
+
+    return {"name": name, "content": "\n".join(lines)}
 
 
 # ── Guidance ──────────────────────────────────────────────────────────────────
