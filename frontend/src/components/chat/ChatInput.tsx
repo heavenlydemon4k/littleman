@@ -1,7 +1,8 @@
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
-import { Send, Square, Brain, Wrench, X } from "lucide-react";
+import { Send, Square, Brain, Wrench, X, Sparkles, HelpCircle } from "lucide-react";
 import clsx from "clsx";
 import { Island } from "../ui/Island";
+import type { Elicitation } from "../../types";
 
 interface Skill {
   name: string;
@@ -16,14 +17,24 @@ interface Props {
   streaming: boolean;
   disabled: boolean;
   centered?: boolean;
+  /** Session id, used to fetch predictive suggestions when the Suggest toggle is on. */
+  sessionId?: string;
+  /** An LLM-emitted question to answer; when present the composer morphs into a question card. */
+  elicitation?: Elicitation | null;
 }
 
-export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Props) {
+const SUGGEST_KEY = "littleman.suggest";
+
+export function ChatInput({ onSend, onStop, streaming, disabled, centered, sessionId, elicitation }: Props) {
   const [value, setValue] = useState("");
   const [thinking, setThinking] = useState(false);
   const [skillsOn, setSkillsOn] = useState(true);
   const [showSkills, setShowSkills] = useState(false);
   const [skills, setSkills] = useState<Skill[]>([]);
+  // Suggestion bar — opt-in (off by default) so it never spends tokens unless the operator asks.
+  const [suggestOn, setSuggestOn] = useState(() => localStorage.getItem(SUGGEST_KEY) === "1");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -32,13 +43,41 @@ export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Pro
     }
   }, [showSkills, skills.length]);
 
-  const submit = () => {
-    const text = value.trim();
-    if (!text || streaming || disabled) return;
-    onSend(text, { thinking, skills: skillsOn });
+  // Fetch predictive suggestions when enabled and the conversation is idle (never mid-stream,
+  // never on a loop). Re-runs when a turn completes (streaming → false) or the toggle flips on.
+  useEffect(() => {
+    if (!suggestOn || streaming || !sessionId) return;
+    let cancelled = false;
+    setSuggestLoading(true);
+    fetch(`/api/chat/sessions/${sessionId}/suggestions`, { method: "POST" })
+      .then((r) => r.json())
+      .then((d: { suggestions?: string[] }) => {
+        if (!cancelled) setSuggestions(Array.isArray(d.suggestions) ? d.suggestions : []);
+      })
+      .catch(() => { if (!cancelled) setSuggestions([]); })
+      .finally(() => { if (!cancelled) setSuggestLoading(false); });
+    return () => { cancelled = true; };
+  }, [suggestOn, streaming, sessionId]);
+
+  const toggleSuggest = () => {
+    setSuggestOn((v) => {
+      const next = !v;
+      localStorage.setItem(SUGGEST_KEY, next ? "1" : "0");
+      if (!next) setSuggestions([]);
+      return next;
+    });
+  };
+
+  const send = (text: string) => {
+    const t = text.trim();
+    if (!t || streaming || disabled) return;
+    onSend(t, { thinking, skills: skillsOn });
     setValue("");
+    setSuggestions([]);
     if (ref.current) ref.current.style.height = "auto";
   };
+
+  const submit = () => send(value);
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -52,6 +91,11 @@ export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Pro
       ref.current.style.height = "auto";
       ref.current.style.height = `${Math.min(ref.current.scrollHeight, 200)}px`;
     }
+  };
+
+  const fillSuggestion = (text: string) => {
+    setValue(text);
+    setTimeout(() => { ref.current?.focus(); onInput(); }, 0);
   };
 
   return (
@@ -92,6 +136,9 @@ export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Pro
           <Toggle active={skillsOn} onClick={() => setSkillsOn((v) => !v)} icon={Wrench} title="Expose agent skills/tools to this chat">
             Skills
           </Toggle>
+          <Toggle active={suggestOn} onClick={toggleSuggest} icon={Sparkles} title="Predictive prompt suggestions (uses the model; off by default)">
+            Suggest
+          </Toggle>
           <button
             onClick={() => setShowSkills((v) => !v)}
             className="text-xs text-muted hover:text-white transition-colors"
@@ -100,41 +147,91 @@ export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Pro
           </button>
         </div>
 
-        <Island interactive className="flex items-end gap-3 px-4 py-3">
-          <textarea
-            ref={ref}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={onKeyDown}
-            onInput={onInput}
-            placeholder={disabled ? "Connecting..." : "Message littleman... (Enter to send, Shift+Enter for newline)"}
-            disabled={disabled || streaming}
-            rows={1}
-            className="flex-1 resize-none bg-transparent text-sm text-white placeholder-muted outline-none disabled:opacity-50"
-            style={{ minHeight: "24px", maxHeight: "200px" }}
-          />
-          {streaming ? (
-            <button
-              onClick={onStop}
-              title="Stop generating"
-              className="flex-shrink-0 rounded-lg border border-red-500/40 p-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
-            >
-              <Square size={16} />
-            </button>
-          ) : (
-            <button
-              onClick={submit}
-              disabled={!value.trim() || disabled}
-              className={clsx(
-                "flex-shrink-0 rounded-lg p-1.5 transition-colors",
-                value.trim() && !disabled
-                  ? "text-blue-400 hover:bg-surface-4"
-                  : "text-muted cursor-not-allowed"
+        {/* Suggestion bar — predictive prompts the operator likely wants next */}
+        {suggestOn && !elicitation && (suggestions.length > 0 || suggestLoading) && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {suggestLoading && suggestions.length === 0 ? (
+              <span className="text-[11px] text-muted">thinking of suggestions…</span>
+            ) : (
+              suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => fillSuggestion(s)}
+                  className="rounded-island border border-border bg-surface-2 px-2.5 py-1 text-left text-[11px] text-gray-300 hover:border-blue-500 hover:text-white transition-colors"
+                >
+                  {s}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        <Island interactive className="px-4 py-3">
+          {/* Elicitation morph — the composer becomes the LLM's question card */}
+          {elicitation && (
+            <div className="mb-3 border-b border-border pb-3">
+              <div className="mb-2 flex items-start gap-2">
+                <HelpCircle size={14} className="mt-0.5 flex-shrink-0 text-blue-400" />
+                <span className="text-sm text-white">{elicitation.question}</span>
+              </div>
+              {elicitation.options.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {elicitation.options.map((opt, i) => (
+                    <button
+                      key={i}
+                      onClick={() => send(opt)}
+                      disabled={disabled || streaming}
+                      className="rounded-island border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs text-blue-200 hover:bg-blue-500/20 disabled:opacity-50 transition-colors"
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               )}
-            >
-              <Send size={18} />
-            </button>
+              <p className="mt-2 text-[10px] text-muted">or type your own answer below</p>
+            </div>
           )}
+
+          <div className="flex items-end gap-3">
+            <textarea
+              ref={ref}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={onKeyDown}
+              onInput={onInput}
+              placeholder={
+                disabled ? "Connecting..."
+                : elicitation ? "Type your own answer..."
+                : "Message littleman... (Enter to send, Shift+Enter for newline)"
+              }
+              disabled={disabled || streaming}
+              rows={1}
+              className="flex-1 resize-none bg-transparent text-sm text-white placeholder-muted outline-none disabled:opacity-50"
+              style={{ minHeight: "24px", maxHeight: "200px" }}
+            />
+            {streaming ? (
+              <button
+                onClick={onStop}
+                title="Stop generating"
+                className="flex-shrink-0 rounded-lg border border-red-500/40 p-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <Square size={16} />
+              </button>
+            ) : (
+              <button
+                onClick={submit}
+                disabled={!value.trim() || disabled}
+                className={clsx(
+                  "flex-shrink-0 rounded-lg p-1.5 transition-colors",
+                  value.trim() && !disabled
+                    ? "text-blue-400 hover:bg-surface-4"
+                    : "text-muted cursor-not-allowed"
+                )}
+              >
+                <Send size={18} />
+              </button>
+            )}
+          </div>
         </Island>
         <p className="mt-1.5 text-center text-xs text-muted">
           littleman can make mistakes. Review its actions.

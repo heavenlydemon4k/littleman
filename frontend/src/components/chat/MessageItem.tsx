@@ -6,6 +6,7 @@ import { Copy, Check } from "lucide-react";
 import type { ChatMessage } from "../../types";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
+import { parseAsk } from "../../lib/elicitation";
 
 interface Props {
   message: ChatMessage & { _streaming?: boolean };
@@ -19,6 +20,10 @@ function fmtTime(iso: string | null): string {
 export function MessageItem({ message }: Props) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+
+  // For assistant messages, an LLM-emitted ```ask block is hoisted out of the bubble and
+  // rendered as a card in the composer; only the prose shows here.
+  const body = isUser ? message.content : parseAsk(message.content).prose;
 
   const copy = () => {
     if (!message.content) return;
@@ -51,7 +56,7 @@ export function MessageItem({ message }: Props) {
         ))}
 
         {/* Text body */}
-        {message.content && (
+        {body && (
           <div className="relative">
             <div
               className={clsx(
@@ -60,7 +65,7 @@ export function MessageItem({ message }: Props) {
               )}
             >
               {isUser ? (
-                <span className="whitespace-pre-wrap">{message.content}</span>
+                <span className="whitespace-pre-wrap">{body}</span>
               ) : (
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -129,7 +134,7 @@ export function MessageItem({ message }: Props) {
                     },
                   }}
                 >
-                  {message.content}
+                  {body}
                 </ReactMarkdown>
               )}
             </div>

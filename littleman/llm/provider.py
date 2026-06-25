@@ -134,6 +134,13 @@ def default_handlers() -> dict[str, Callable[[str, str], str]]:
         # First Light now authors each construct doc as plain markdown.
         return "## Current Summary\n- Establish bearings and survey markets\n\n## P1: First edge\n**Why:** No positions yet.\n"
 
+    def suggestions(_s: str, _u: str) -> str:
+        return json.dumps([
+            "Scan for high-confidence markets",
+            "Show my current exposure",
+            "What did you do in your last wake?",
+        ])
+
     # Markers are unique phrases from each system prompt (see llm/prompts.py + plan/turns).
     return {
         "producing a structured situation report": situation,
@@ -144,6 +151,7 @@ def default_handlers() -> dict[str, Callable[[str, str], str]]:
         "structured probability estimation": probability,
         "You are the self-scheduler": heartbeat_plan,
         "writing the body of": first_light_doc,
+        "You are the prompt-suggestion engine": suggestions,
     }
 
 

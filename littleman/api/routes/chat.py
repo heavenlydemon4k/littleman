@@ -83,6 +83,46 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.post("/sessions/{session_id}/suggestions")
+async def suggest_prompts(session_id: str, db: AsyncSession = Depends(get_db)):
+    """LLM-generated predictive prompts the operator is likely considering next.
+
+    Opt-in (the frontend's suggestion toggle is off by default) and only ever invoked on
+    explicit operator activity — never on idle — so it does not breach the zero-token-when-idle
+    invariant. Routed through the provider abstraction so it runs on the scripted fake in tests.
+    """
+    from littleman.llm.prompts import CHAT_SUGGESTIONS_SYSTEM, CHAT_SUGGESTIONS_USER
+    from littleman.llm.provider import get_provider
+
+    result = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.created_at)
+    )
+    messages = result.scalars().all()
+    # Compact transcript of the recent exchange (most recent dozen turns is plenty of context).
+    lines = []
+    for m in messages[-12:]:
+        if m.role in ("user", "assistant") and m.content:
+            lines.append(f"{m.role}: {m.content[:300]}")
+    transcript = "\n".join(lines) or "(no messages yet)"
+
+    model = await _resolve_model(db)
+    try:
+        raw = await get_provider().complete(
+            model,
+            [
+                {"role": "system", "content": CHAT_SUGGESTIONS_SYSTEM},
+                {"role": "user", "content": CHAT_SUGGESTIONS_USER.format(transcript=transcript)},
+            ],
+        )
+        parsed = json.loads(_strip_code_fence(raw))
+        suggestions = [str(s) for s in parsed if isinstance(s, (str, int, float))][:3]
+    except Exception:
+        suggestions = []
+    return {"suggestions": suggestions}
+
+
 @router.get("/sessions/{session_id}/messages")
 async def get_messages(session_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -173,6 +213,18 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _strip_code_fence(text: str) -> str:
+    """Tolerate models that wrap JSON in a ```json fence."""
+    t = text.strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[-1] if "\n" in t else t
+        if t.endswith("```"):
+            t = t[: -3]
+        if t.startswith("json"):
+            t = t[4:]
+    return t.strip()
+
+
 def _serialise_message(m: ChatMessage) -> dict:
     return {
         "id": m.id,
@@ -244,7 +296,9 @@ def _chat_tools() -> list[dict]:
 async def _stream_llm(
     model: str, soul: str, history: list[dict], tools: list[dict], thinking: bool = False
 ) -> AsyncIterator[dict]:
-    messages = [{"role": "system", "content": soul}] + history
+    from littleman.llm.prompts import CHAT_ELICITATION_GUIDE
+
+    messages = [{"role": "system", "content": soul + CHAT_ELICITATION_GUIDE}] + history
 
     from littleman.llm.provider import completion_kwargs
 

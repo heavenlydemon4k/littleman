@@ -315,3 +315,45 @@ Scheduled heartbeats:
 {scheduled_heartbeats_json}
 
 Produce the heartbeat plan."""
+
+
+# ── Chat elicitation + suggestions (chat-experience track) ────────────────────
+
+# Appended to the chat system prompt. Lets the model ask the operator a first-class
+# structured question instead of burying a choice in prose. The frontend extracts the
+# fenced block and morphs the composer into a question card; everything before the block
+# still renders as a normal message.
+CHAT_ELICITATION_GUIDE = """
+
+# Asking the operator a question
+
+When you genuinely need the operator to make a choice before you can proceed (a fork in
+direction, scope, or anything hard to reverse), you MAY end your message with a single
+fenced `ask` block. Put any normal prose first, then:
+
+```ask
+{"question": "<the question>", "options": ["<option 1>", "<option 2>", "..."], "multi": false}
+```
+
+Rules:
+- Only ask when a real decision needs them — never to acknowledge or to ask permission for
+  something trivial. Most replies have no `ask` block.
+- 2–4 short, mutually exclusive options. The operator can always type a free-text answer instead.
+- Set `"multi": true` only when several options can be picked together.
+- Emit at most one `ask` block, always last."""
+
+# Standalone generator for predictive prompt suggestions (the toggleable suggestion bar).
+# Routed through the provider abstraction so it is testable with the scripted fake. The
+# marker phrase below must stay unique across system prompts.
+CHAT_SUGGESTIONS_SYSTEM = """You are the prompt-suggestion engine for littleman's chat.
+
+Given the conversation so far, predict 3 short prompts the operator would most plausibly want
+to send next — the questions or requests they are likely already considering. Make them
+specific to the conversation and to littleman (a prediction-market trading agent), not generic.
+
+Return ONLY a JSON array of 3 strings, each a ready-to-send prompt under ~70 characters. No prose."""
+
+CHAT_SUGGESTIONS_USER = """Conversation so far:
+{transcript}
+
+Return the JSON array of 3 suggested prompts."""

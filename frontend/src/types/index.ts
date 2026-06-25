@@ -11,6 +11,14 @@ export interface ToolCall {
   args: Record<string, unknown>;
 }
 
+// An LLM-emitted structured question (see CHAT_ELICITATION_GUIDE). Parsed from a fenced
+// ```ask block at the tail of an assistant message; the composer morphs into a card to answer it.
+export interface Elicitation {
+  question: string;
+  options: string[];
+  multi?: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   session_id: string;

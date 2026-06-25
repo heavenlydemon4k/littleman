@@ -152,13 +152,24 @@ Near-term, in rough priority:
      (`rounded-island`→12px, `shadow-island`→defined). Full ChatInput/ActivityFeed visual render
      still wants the backend live-run reserved for operator go. Static page cards (settings/agent/
      onboarding) intentionally left for a later, wider pass.
-6. **Elicitation surface** — make LLM-asked questions a first-class conversational element and let
-   the prompt input expand vertically into that same header+options card, with auto-suggested
-   prompts (a toggleable suggestion bar above the input). Decisions still open: LLM-emitted vs.
-   deterministic suggestions; input-morph vs. separate bar. Frontend + a structured "ask" the
-   model can emit.
-   - Related larger item: give **user chat** a tool-executing ReAct loop so chats show the same
+6. **Elicitation surface** — ✅ DONE. LLM-asked questions are now first-class, and the composer
+   morphs into the answer card. Forks resolved with operator: **input-morph** (not a separate
+   card) and **LLM-generated** suggestions (not deterministic).
+   - Structured ask: the model may end a chat reply with a fenced ` ```ask ` block
+     (`CHAT_ELICITATION_GUIDE`, appended to the chat system prompt). `lib/elicitation.ts`
+     `parseAsk()` splits prose (→ bubble) from the ask (→ composer); malformed blocks degrade to
+     no-card. `ChatPage` derives the active (last, unanswered) elicitation; `ChatInput` morphs
+     into a question header + option chips, free-text still allowed.
+   - Suggestion bar: a 3rd **Suggest** toggle beside Thinking/Skills (off by default, persisted).
+     When on, `POST /chat/sessions/{id}/suggestions` returns 3 LLM-predicted prompts (routed
+     through the provider abstraction → testable on the scripted fake). Fetched only on operator
+     activity (open / after a turn), never on idle — preserves the zero-token invariant. Chips
+     prefill the input (editable), not auto-send.
+   - Tests: `tests/test_chat_suggestions.py` (3 — returns three, empty-session safe, degrades to
+     `[]` on bad model output). Suite now **87 green**; frontend tsc + build clean.
+   - **Deferred (next):** give **user chat** a tool-executing ReAct loop so chats stream the same
      live action feed as wakes (today chat is a single non-tool turn). Has its own safety gates.
+     Full live render of morph + suggestions still wants the operator-go backend run.
 
 Longer-term / deliberately deferred:
 

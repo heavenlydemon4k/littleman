@@ -8,6 +8,7 @@ import { useChat } from "../hooks/useChat";
 import { useActivity } from "../hooks/useActivity";
 import { Wifi, WifiOff, Loader2, Plus, Bot, ChevronDown, Pencil, Check, X, Play, Circle } from "lucide-react";
 import type { ChatMessage } from "../types";
+import { parseAsk } from "../lib/elicitation";
 
 export function ChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -134,6 +135,14 @@ export function ChatPage() {
 
   const isEmpty = messages.length === 0 && !streaming;
   const isMain = sessionId === "main";
+
+  // An unanswered LLM question morphs the composer into a card. Active only when the very last
+  // message is an assistant turn carrying an ```ask block (a following user message clears it).
+  const last = messages[messages.length - 1];
+  const activeElicitation =
+    !streaming && last && last.role === "assistant"
+      ? parseAsk(last.content).ask
+      : null;
 
   // Empty state
   if (!sessionId) {
@@ -277,6 +286,7 @@ export function ChatPage() {
                   onStop={stopStreaming}
                   streaming={streaming}
                   disabled={status !== "connected"}
+                  sessionId={sessionId}
                   centered
                 />
               </div>
@@ -312,6 +322,8 @@ export function ChatPage() {
           onStop={stopStreaming}
           streaming={streaming}
           disabled={status !== "connected"}
+          sessionId={sessionId}
+          elicitation={activeElicitation}
         />
       )}
     </div>
