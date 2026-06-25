@@ -110,16 +110,26 @@ export function useChat(sessionId: string | null) {
           }
           break;
 
-        case "error":
+        case "error": {
           setStreaming(false);
-          if (streamBuffer.current) {
-            const id = streamBuffer.current.id;
-            setMessages((prev) =>
-              prev.map((m) => (m.id === id ? { ...m, _streaming: false } : m))
-            );
-            streamBuffer.current = null;
-          }
+          // Surface the failure in the bubble rather than dropping it — a turn must never end
+          // silently. Show the server's detail, keeping any partial text already streamed.
+          const detail = (event as { message?: string }).message || "generation failed";
+          const id = streamBuffer.current?.id;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === id
+                ? {
+                    ...m,
+                    _streaming: false,
+                    content: m.content ? `${m.content}\n\n⚠️ ${detail}` : `⚠️ ${detail}`,
+                  }
+                : m
+            )
+          );
+          streamBuffer.current = null;
           break;
+        }
       }
     });
   }, [subscribe, sessionId]);

@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import AsyncIterator
@@ -15,6 +16,7 @@ from littleman.db.models import ChatMessage, ChatSession, LLMConfig
 from littleman.llm.client import build_tool_definitions, load_soul
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+log = logging.getLogger("littleman.chat")
 
 
 # ── REST: session management ──────────────────────────────────────────────────
@@ -184,15 +186,31 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
             accumulated_thinking = ""
             pending_tool_calls: list[dict] = []
 
-            async for event in _stream_llm(model, soul, history, tools, thinking_on):
-                await ws.send_json(event)
+            # Never let an LLM/provider failure die silently: surface it to the client as an
+            # `error` frame (the model config is wrong, the key is bad, the host is down, …) and
+            # still close out the turn so the UI resolves instead of hanging on the placeholder.
+            try:
+                async for event in _stream_llm(model, soul, history, tools, thinking_on):
+                    await ws.send_json(event)
 
-                if event["type"] == "token":
-                    accumulated_content += event["content"]
-                elif event["type"] == "thinking":
-                    accumulated_thinking += event["content"]
-                elif event["type"] == "tool_call":
-                    pending_tool_calls.append(event["call"])
+                    if event["type"] == "token":
+                        accumulated_content += event["content"]
+                    elif event["type"] == "thinking":
+                        accumulated_thinking += event["content"]
+                    elif event["type"] == "tool_call":
+                        pending_tool_calls.append(event["call"])
+            except Exception as e:  # noqa: BLE001 — any provider error must reach the operator
+                log.exception("chat stream failed for session %s", session_id)
+                detail = f"{type(e).__name__}: {e}"
+                await ws.send_json({"type": "error", "message": detail})
+                # Persist the failure as the assistant turn so it survives reload, not a blank.
+                db.add(ChatMessage(
+                    id=assistant_id, session_id=session_id, role="assistant",
+                    content=f"⚠️ Generation failed — {detail}",
+                ))
+                await db.commit()
+                await ws.send_json({"type": "assistant_done", "id": assistant_id})
+                continue
 
             assistant_msg = ChatMessage(
                 id=assistant_id,
