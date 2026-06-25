@@ -29,6 +29,11 @@ APPEND_DOCS = ("REFLECTION.md",)
 
 ALL_DOCS = OVERWRITE_DOCS + APPEND_DOCS
 
+# The subset of OVERWRITE_DOCS that must exist for is_initialised() to return True.
+# CALENDAR.md is excluded so existing workspaces initialized before it was added are not
+# falsely treated as uninitialised and re-triggered for First Light.
+FIRST_LIGHT_DOCS = ("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md", "DIRECTIVE.md")
+
 
 _TRUNC_MARKER = "\n…[truncated]…\n"
 
@@ -115,8 +120,12 @@ class Construct:
 
 
 def is_initialised() -> bool:
-    """True if the live construct documents exist (i.e. first light has run)."""
-    return all(_doc_path(name).exists() for name in OVERWRITE_DOCS)
+    """True if the core construct documents exist (i.e. first light has run).
+
+    Uses FIRST_LIGHT_DOCS rather than OVERWRITE_DOCS so that workspaces initialized before
+    CALENDAR.md was added are not incorrectly treated as uninitialised.
+    """
+    return all(_doc_path(name).exists() for name in FIRST_LIGHT_DOCS)
 
 
 def load() -> Construct:

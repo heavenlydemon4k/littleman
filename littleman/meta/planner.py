@@ -3,17 +3,18 @@
 After the session's work is done, this decides what future sessions are needed and writes
 heartbeat records. It is the mechanism that makes the agent's schedule self-propagating.
 
-Deterministic cascade rules (resolution checks, research windows, idle fallback) are applied
-in code; the LLM is used to decide amendments/cancellations and to fill intent-carrying
-context, but the core scheduling decisions do not require a model call.
+Deterministic cascade rules (resolution checks, research windows, calendar events, idle
+fallback) are applied in code; the LLM is used to decide amendments/cancellations and to
+fill intent-carrying context, but creation is always deterministic.
 
-CALENDAR.md integration: the agent's CALENDAR.md is passed to the LLM refinement step so
-agent-discovered events (not covered by the deterministic cascade) can also produce heartbeats.
+CALENDAR.md integration: the agent writes parseable event lines under "## Upcoming" and
+_calendar_specs() turns future entries into heartbeats automatically at schedule time.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -30,9 +31,15 @@ _CATEGORY_LEAD = {"politics": 2.0, "sports": 0.5, "crypto": 0.25}
 _DEFAULT_LEAD_HOURS = 1.0
 _GRACE_MINUTES = 10
 
+# Parses: - 2026-07-01T14:00:00Z | RESEARCH | BTC position closes
+_CALENDAR_LINE = re.compile(
+    r"^-\s+(?P<when>[^\|]+)\|\s*(?P<type>[^\|]+)\|\s*(?P<reason>.+)$"
+)
+_CALENDAR_SESSION_TYPES = frozenset({"RESOLVE", "RESEARCH", "MONITOR", "FULL_CYCLE"})
+
 
 def _parse_dt(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
 
 
 def _category_of(market: dict[str, Any]) -> str:
@@ -41,7 +48,7 @@ def _category_of(market: dict[str, Any]) -> str:
 
 
 def _deterministic_plan(state: WorldModelState, now: datetime) -> list[dict[str, Any]]:
-    """Apply the cascade rules to produce heartbeat specs without an LLM call."""
+    """Apply the position/market cascade rules to produce heartbeat specs."""
     specs: list[dict[str, Any]] = []
 
     for p in state.pending_resolutions + state.open_positions:
@@ -85,16 +92,48 @@ def _deterministic_plan(state: WorldModelState, now: datetime) -> list[dict[str,
             }
         )
 
-    if not specs:
+    return specs
+
+
+def _calendar_specs(now: datetime) -> list[dict[str, Any]]:
+    """Turn future, parseable CALENDAR.md entries into heartbeat specs.
+
+    This is the bridge from the agent's forward calendar to its schedule: event lines the
+    agent writes under "## Upcoming" become heartbeats automatically. Unparseable or past
+    lines are silently ignored; dedup happens in plan_and_schedule.
+    """
+    specs: list[dict[str, Any]] = []
+    try:
+        body = construct.load().calendar
+    except Exception:  # noqa: BLE001 — missing/unreadable calendar must not break scheduling
+        return specs
+    if not body:
+        return specs
+
+    for raw in body.splitlines():
+        m = _CALENDAR_LINE.match(raw.strip())
+        if not m:
+            continue
+        session_type = m.group("type").strip().upper()
+        if session_type not in _CALENDAR_SESSION_TYPES:
+            continue
+        try:
+            when = _parse_dt(m.group("when"))
+        except (ValueError, AttributeError):
+            continue
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        if when <= now:
+            continue
+        iso = when.isoformat()
         specs.append(
             {
-                "fire_at": (now + timedelta(hours=settings.idle_heartbeat_interval_hours)).isoformat(),
-                "reason": "Idle maintenance scan — no specific positions or watches",
-                "session_type": "FULL_CYCLE",
-                "context": {"primary_trigger": "idle_maintenance"},
+                "fire_at": iso,
+                "reason": m.group("reason").strip(),
+                "session_type": session_type,
+                "context": {"primary_trigger": "calendar_event", "calendar_when": iso},
             }
         )
-
     return specs
 
 
@@ -108,6 +147,8 @@ def _dedupe_key(context: dict[str, Any], session_type: str) -> str:
         return f"research:{context.get('market_id')}"
     if trigger == "idle_maintenance":
         return "idle"
+    if trigger == "calendar_event":
+        return f"calendar:{context.get('calendar_when')}"
     return f"{trigger}:{session_type}"
 
 
@@ -119,10 +160,20 @@ async def plan_and_schedule(
     use_llm_refinement: bool = True,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
-    specs = _deterministic_plan(state, now)
+    specs = _deterministic_plan(state, now) + _calendar_specs(now)
 
-    # Dedupe against already-scheduled heartbeats so the cascade does not pile up duplicate
-    # idle / resolution / research wakes for the same trigger.
+    # No positions, no market closes, no calendar entries → idle fallback.
+    if not specs:
+        specs = [
+            {
+                "fire_at": (now + timedelta(hours=settings.idle_heartbeat_interval_hours)).isoformat(),
+                "reason": "Idle maintenance scan — no specific positions, watches, or calendar events",
+                "session_type": "FULL_CYCLE",
+                "context": {"primary_trigger": "idle_maintenance"},
+            }
+        ]
+
+    # Dedupe against already-scheduled heartbeats so the cascade does not pile up duplicates.
     existing = await store.list_scheduled(db)
     existing_keys = {_dedupe_key(h.context or {}, h.session_type) for h in existing}
     specs = [s for s in specs if _dedupe_key(s["context"], s["session_type"]) not in existing_keys]
@@ -130,18 +181,11 @@ async def plan_and_schedule(
     cancel: list[dict[str, Any]] = []
     amend: list[dict[str, Any]] = []
 
-    # Optional LLM pass to amend/cancel stale scheduled heartbeats and enrich context.
-    # CALENDAR.md is included so the LLM can create heartbeats for agent-discovered events
-    # that don't appear in the deterministic position/market cascade.
+    # Optional LLM pass to amend/cancel stale scheduled heartbeats.
+    # Calendar-based creation stays deterministic above; the LLM only handles amendments.
     if use_llm_refinement and state.next_heartbeats:
         try:
             scheduled = [h.model_dump() for h in state.next_heartbeats]
-            calendar_content = construct.load().calendar or ""
-            calendar_block = (
-                f"\n\nAgent CALENDAR.md (upcoming events the agent tracks):\n{calendar_content}"
-                if calendar_content.strip()
-                else ""
-            )
             system = render(
                 HEARTBEAT_PLAN_SYSTEM,
                 idle_hours=settings.idle_heartbeat_interval_hours,
@@ -153,13 +197,11 @@ async def plan_and_schedule(
                 positions_json=json.dumps([p.model_dump() for p in state.open_positions]),
                 watched_markets_json=json.dumps(state.watched_markets),
                 scheduled_heartbeats_json=json.dumps(scheduled),
-            ) + calendar_block
+            )
             refined = await complete_json(system, user, tier="secondary")
-            # Trust the LLM only for amend/cancel; creation stays deterministic.
             cancel = refined.get("cancel", [])
             amend = refined.get("amend", [])
         except Exception:
-            # Refinement is best-effort; the deterministic plan stands on its own.
             cancel, amend = [], []
 
     created = []

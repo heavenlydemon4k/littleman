@@ -37,26 +37,30 @@ Drop priorities that are done or no longer apply; add ones this wake surfaced; r
 matters now. Be specific to the actual situation. Do not pad or invent."""
 
 
-CALENDAR_MAINTAIN_SYSTEM = """You maintain CALENDAR.md — the agent's list of upcoming events
-tracked for self-scheduling. Update it to reflect what this wake revealed.
+CALENDAR_MAINTAIN_SYSTEM = """You maintain CALENDAR.md — the agent's forward calendar of
+time-bound events. The self-scheduler reads this file and turns each parseable entry into a
+heartbeat automatically. Keep it accurate: what you write here is what wakes you up.
 
-Output ONLY the markdown body (no code fences, no preamble). Structure:
+Output ONLY the markdown body (no code fences, no preamble). Preserve the two-section structure:
+
 ## Current Summary
-(1-2 sentences: earliest event, total count, or "No upcoming events.")
+(1-2 sentences: earliest event, total count, or "No upcoming events." Keep it honest.)
 
-Then for each upcoming event, most imminent first:
-## {ISO datetime UTC} — {short label}
-**Type:** market_close | position_resolution | external_event | self_scheduled
-**Lead:** {how far ahead to wake, e.g. "1 h before", "10 min after close"}
-**Action:** {what the future wake should do — one sentence}
-**Context:** {key identifiers and facts — market id, position id, price, etc.}
+## Upcoming
+(One event per line, in exactly this machine-parseable format:
+  - <ISO 8601 datetime UTC> | <SESSION_TYPE> | <reason>
+SESSION_TYPE is one of: RESOLVE | RESEARCH | MONITOR | FULL_CYCLE
+Example:
+  - 2026-07-01T14:00:00Z | RESOLVE | BTC position resolves; check outcome
+  - 2026-07-02T09:00:00Z | RESEARCH | FOMC meeting — re-assess rate-cut markets)
 
-Rules:
-- Drop entries whose datetime is now in the past.
-- Merge duplicate events (one entry per unique event).
-- If a watched market close or position resolution is already tracked, keep it current.
-- If nothing is upcoming, write only the Current Summary: "No upcoming events."
-- Do not invent events; only record what the session data confirms."""
+Maintenance rules:
+- Drop lines whose datetime is now in the past.
+- Merge duplicates (one line per unique event).
+- Add any newly discovered time-bound events from this wake.
+- Keep open positions and watched market closes current and accurate.
+- If nothing is upcoming, leave the Upcoming section empty (keep the heading).
+- Do not invent events; only record what this session's data confirms."""
 
 
 SELF_MAINTAIN_SYSTEM = """You maintain SELF.md — the agent's runtime self-model: capabilities,

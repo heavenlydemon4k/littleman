@@ -1,30 +1,26 @@
 <!-- TEMPLATE: CALENDAR.md
-     Upcoming events the agent tracks for self-scheduling. Updated every wake: add newly
-     discovered events, remove past ones. The self-scheduler reads this when planning heartbeats
-     so it can fire at the right moment for each event — not just for open positions/markets.
+     Your forward calendar: time-bound events you are tracking — market closes, resolution
+     windows, deadlines, anything that should pull you awake at a specific time.
 
-     Covers anything time-bound and requiring future agent action:
-       - Market closes (from watched_markets or discovered during research)
-       - Position resolution windows (known outcome dates)
-       - External events with predictable timing (earnings, political votes, data releases)
-       - Self-scheduled follow-ups the agent decided on mid-session
+     This file is READ BY YOUR SELF-SCHEDULER at the end of every wake. Each future entry
+     under "## Upcoming" that it can parse is turned into a heartbeat automatically, so you
+     do not have to call create_heartbeat by hand for things you record here. Keep it current:
+     this is how you tie what you are tracking to when you next wake.
 
-     Format for each entry (most imminent first):
-       ## {ISO date or datetime UTC} — {short label}
-       **Type:** market_close | position_resolution | external_event | self_scheduled
-       **Lead:** {how far ahead to act, e.g. "1 h before", "10 min after"}
-       **Action:** {what the future wake should do — 1 sentence}
-       **Context:** {key identifiers and facts the future wake needs, e.g. market id, current price}
+     Put each event on its own line under "## Upcoming", in exactly this shape:
+       - <ISO 8601 datetime UTC> | <SESSION_TYPE> | <reason>
+     for example:
+       - 2026-06-25T14:00:00Z | RESEARCH | BTC > $80k market closes in 1h — refresh estimate
+       - 2026-06-26T09:30:00Z | RESOLVE  | Election market resolves; check the position
 
-     Maintenance rules:
-       - Keep most imminent first.
-       - Drop entries whose datetime is in the past.
-       - Merge duplicates (one entry per unique event).
-       - Keep a Current Summary at the top (1-2 sentences: earliest event, total count).
-       - If nothing is upcoming, write "No upcoming events." as the only body content.
+     SESSION_TYPE is one of: RESOLVE | RESEARCH | MONITOR | FULL_CYCLE.
+     Use UTC (a trailing Z) so times are unambiguous. Lines that do not match the shape, or
+     whose time is in the past, are ignored. Remove entries once they have fired or no longer
+     matter so the calendar stays an accurate picture of what is ahead.
 -->
 
 ## Current Summary
-<!-- Empty at first light — filled by the agent once it has reviewed the calendar horizon. -->
+<!-- The agent writes a 1-2 sentence summary of the calendar horizon at first light. -->
 
-<!-- Upcoming event entries go here, most imminent first. -->
+## Upcoming
+<!-- one event per line in the format: - <ISO datetime Z> | <SESSION_TYPE> | <reason> -->
