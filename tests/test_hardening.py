@@ -99,7 +99,7 @@ def test_skill_with_no_requirements_is_available():
 # ── Context budget ────────────────────────────────────────────────────────────
 
 def _construct(**overrides) -> construct.Construct:
-    base = dict(priorities="", macro_plan="", self_model="", calendar="", directive="", reflection="")
+    base = dict(priorities="", macro_plan="", self_model="", exposure="", calendar="", directive="", reflection="")
     base.update(overrides)
     return construct.Construct(**base)
 

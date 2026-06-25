@@ -231,6 +231,14 @@ async def _run_pipeline(
     try:
         # Pass a lightweight world snapshot so the calendar can track open positions/markets.
         _wm_snapshot = {
+            "wallet_balance_usdc": state.wallet_balance_usdc,
+            "available_balance_usdc": state.available_balance_usdc,
+            "total_pnl": state.total_pnl,
+            "open_exposure_usdc": state.open_exposure_usdc(),
+            "exposure_by_category": state.exposure_by_category(),
+            "peak_balance": state.peak_balance,
+            "session_start_balance": state.session_start_balance,
+            "circuit_breaker_active": state.circuit_breaker_active,
             "open_positions": [p.model_dump() for p in state.open_positions],
             "watched_markets": state.watched_markets,
             "pending_resolutions": [p.model_dump() for p in state.pending_resolutions],

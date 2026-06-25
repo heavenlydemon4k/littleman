@@ -77,9 +77,10 @@ Watch a wake act in real time. Because wakes run in a different process than the
 **Platform core**
 - Wake/sleep model with self-authored **heartbeats**; dumb scheduler (poll + fire), gated by an
   **autonomous** toggle (off by default), with stale-session recovery + exponential-backoff retry.
-- **Mental construct** (PRIORITIES / MACRO_PLAN / SELF / CALENDAR / DIRECTIVE / REFLECTION) that
-  is read at the start of every wake and **maintained at the end** — a living memory, not a
-  snapshot: priorities re-ranked, calendar refreshed, and self-model conditionally updated.
+- **Mental construct** (PRIORITIES / MACRO_PLAN / SELF / EXPOSURE / CALENDAR / DIRECTIVE /
+  REFLECTION) that is read at the start of every wake and **maintained at the end** — a living
+  memory, not a snapshot: priorities re-ranked, exposure re-rendered from the world model,
+  calendar refreshed, and self-model conditionally updated.
 - **Turn cycle**: reconcile → situate → directive → strategy/tasks → ReAct skill execution →
   reflect → maintain (PRIORITIES + CALENDAR + SELF) → self-schedule.
 - **Skill registry** (22 skills) with requirement gating + on-demand `read_skill_doc`; the agent
@@ -103,7 +104,7 @@ Watch a wake act in real time. Because wakes run in a different process than the
 **Polymarket reference application**
 - Live market reads (scan/market/orderbook/resolution) and read-only wallet reconcile.
 
-**Tests:** 87 passing.
+**Tests:** 94 passing.
 
 ---
 
@@ -128,8 +129,20 @@ action feed render in the browser — verified by tests + build only so far.
 
 Near-term, in rough priority:
 
-1. **`EXPOSURE.md`** — a readable risk map mirroring the world model (open positions, exposure,
-   drawdown) for the agent to reason over during the directive/strategy step.
+1. **`EXPOSURE.md`** — ✅ DONE. A 7th construct doc: a readable risk map (capital, open exposure
+   by category, drawdown from peak, circuit-breaker status, open positions). Resolved with
+   operator as **deterministically rendered** (not LLM-authored) so figures can't drift, and
+   written in `maintain_construct()` each wake (runs in fake mode too — no LLM).
+   - `meta/exposure.py` `render_exposure(world_state)` — pure formatter, tolerant of partial
+     snapshots; `meta/maintain.py` `_render_exposure()` writes it before the fake-mode gate.
+   - New doc category `construct.RENDERED_DOCS` (agent-readable, never agent-written); threaded
+     through `Construct.exposure`, `as_prompt_block`, `load()`, `write_doc` guard, `ALL_DOCS`
+     (next to SELF.md), `WORKSPACE_CORE`, `construct_skills` read map, the dashboard route, and
+     `AGENT.md`. Excluded from `FIRST_LIGHT_DOCS` (like CALENDAR.md) so old workspaces aren't
+     re-onboarded. `session.py` enriches the world snapshot with balances/exposure/peak.
+   - Frontend: an "Exposure" `AuthoredCard` on the Agent overview; the doc also lists generically.
+   - Tests: `tests/test_exposure.py` (7 — figures, drawdown, breaker, empty/partial snapshot,
+     fake-mode maintain integration, not-agent-writable). Suite **94 green**; frontend build clean.
 2. **Custom-path self-config skill** (`update_self`) — so custom onboarding genuinely writes the
    operator's `SOUL.md` through conversation; gated to the custom onboarding path.
 3. **Turn cycle PLAN.md → TURNS.md** — the N-turn execution window from the architecture meta;

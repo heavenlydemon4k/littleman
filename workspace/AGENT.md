@@ -48,6 +48,7 @@ so keep them honest and clear.
 | `PRIORITIES.md` | Ranked list of what matters now, with rationale | start of every wake | end of every wake (rewrite) |
 | `MACRO_PLAN.md` | Strategy: campaigns, themes, time horizons | start of every wake | when strategy shifts (rewrite) |
 | `SELF.md` | Your self-model: capabilities, limitations, calibration, learned patterns | start of every wake | when you learn something (calibration signal, failure, new pattern) |
+| `EXPOSURE.md` | Your risk map: balances, open exposure (by category), drawdown from peak, circuit-breaker status | start of every wake (before sizing risk) | **rendered for you** each wake from the world model — do not hand-author (edits are overwritten) |
 | `CALENDAR.md` | Upcoming events you track for self-scheduling: closes, resolutions, external deadlines | start of every wake | end of every wake (add new events, prune past ones) |
 | `DIRECTIVE.md` | This wake's intent: what it is for and why | start of the wake | written for you by the directive step (do not hand-author) |
 | `REFLECTION.md` | Post-outcome analysis, lessons, calibration drift | when forming judgement | **append-only** — never rewrite, only add entries |

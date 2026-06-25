@@ -16,6 +16,8 @@ WORKSPACE_CORE = """Your mental workspace — read it at the start of a wake, ma
 - PRIORITIES.md: your ranked stack of what matters now. You re-rank it every wake.
 - MACRO_PLAN.md: your strategy and campaigns. Revise only when the strategy actually shifts.
 - SELF.md: your capabilities, calibration, and learned patterns. Amend it when you learn something.
+- EXPOSURE.md: your current risk map (balances, open exposure, drawdown). Rendered for you each
+  wake — read it before sizing new risk; do not edit it (your edits are overwritten).
 - CALENDAR.md: upcoming events you track for self-scheduling. Update it every wake.
 - REFLECTION.md: append-only outcome log. Never rewrite it; only add entries.
 Reason from your priorities. Update your self-model when an outcome teaches you something. You

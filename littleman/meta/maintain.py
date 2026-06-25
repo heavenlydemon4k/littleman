@@ -101,6 +101,17 @@ async def _maintain_self(c: construct.Construct, directive: dict, summary: str, 
     return False
 
 
+def _render_exposure(world_state: dict) -> bool:
+    """Render EXPOSURE.md deterministically from the world model. No LLM — runs every mode."""
+    from littleman.meta.exposure import render_exposure
+
+    body = render_exposure(world_state or {})
+    if body.strip():
+        construct.write_doc("EXPOSURE.md", body)
+        return True
+    return False
+
+
 async def maintain_construct(
     directive: dict[str, Any],
     session_summary: str,
@@ -109,14 +120,21 @@ async def maintain_construct(
 ) -> dict[str, Any]:
     """Maintain the agent's mental construct after a wake. Returns a status dict.
 
-    Always updates PRIORITIES.md and CALENDAR.md. Conditionally updates SELF.md when the
-    wake produced calibration signals. Skipped entirely in fake mode.
+    Renders EXPOSURE.md (deterministic, every mode), then — outside fake mode — re-ranks
+    PRIORITIES.md and CALENDAR.md and conditionally updates SELF.md.
     """
+    results: dict[str, Any] = {}
+
+    # EXPOSURE.md is rendered from world state with no LLM call, so it runs in fake mode too.
+    try:
+        results["exposure"] = _render_exposure(world_state or {})
+    except Exception:  # noqa: BLE001
+        results["exposure"] = False
+
     if runtime.active().get("mode") == "fake":
-        return {"maintained": False, "reason": "fake mode"}
+        return {"maintained": any(results.values()), "reason": "fake mode", "docs": results}
 
     c = construct.load()
-    results: dict[str, Any] = {}
 
     try:
         results["priorities"] = await _maintain_priorities(c, directive, session_summary, exec_result)

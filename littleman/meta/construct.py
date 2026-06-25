@@ -26,12 +26,21 @@ from littleman.config import settings
 OVERWRITE_DOCS = ("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md", "CALENDAR.md", "DIRECTIVE.md")
 # Documents that only ever grow.
 APPEND_DOCS = ("REFLECTION.md",)
+# Documents the agent does NOT author: rendered deterministically from system state each wake
+# (EXPOSURE.md is a risk map drawn straight from the world model). Loaded into the prompt and
+# readable by the agent, but never LLM-written — so the figures can't drift or hallucinate.
+RENDERED_DOCS = ("EXPOSURE.md",)
 
-ALL_DOCS = OVERWRITE_DOCS + APPEND_DOCS
+# Prompt/seed order. EXPOSURE.md sits next to SELF.md so the agent reads its risk state right
+# before forming the directive.
+ALL_DOCS = (
+    "PRIORITIES.md", "MACRO_PLAN.md", "SELF.md", "EXPOSURE.md",
+    "CALENDAR.md", "DIRECTIVE.md", "REFLECTION.md",
+)
 
-# The subset of OVERWRITE_DOCS that must exist for is_initialised() to return True.
-# CALENDAR.md is excluded so existing workspaces initialized before it was added are not
-# falsely treated as uninitialised and re-triggered for First Light.
+# The subset that must exist for is_initialised() to return True. CALENDAR.md and EXPOSURE.md
+# are excluded so workspaces initialized before they were added are not falsely treated as
+# uninitialised and re-triggered for First Light.
 FIRST_LIGHT_DOCS = ("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md", "DIRECTIVE.md")
 
 
@@ -68,6 +77,7 @@ class Construct:
     priorities: str
     macro_plan: str
     self_model: str
+    exposure: str
     calendar: str
     directive: str
     reflection: str
@@ -94,6 +104,7 @@ class Construct:
             "PRIORITIES.md": self.priorities,
             "MACRO_PLAN.md": self.macro_plan,
             "SELF.md": self.self_model,
+            "EXPOSURE.md": self.exposure,
             "CALENDAR.md": self.calendar,
             "DIRECTIVE.md": self.directive,
             "REFLECTION.md": self.reflection,
@@ -139,6 +150,7 @@ def load() -> Construct:
         priorities=read("PRIORITIES.md"),
         macro_plan=read("MACRO_PLAN.md"),
         self_model=read("SELF.md"),
+        exposure=read("EXPOSURE.md"),
         calendar=read("CALENDAR.md"),
         directive=read("DIRECTIVE.md"),
         reflection=read("REFLECTION.md"),
@@ -152,8 +164,12 @@ def read_template(name: str) -> str:
 
 
 def write_doc(name: str, content: str) -> None:
-    """Overwrite a construct document. Used for the OVERWRITE_DOCS."""
-    if name not in OVERWRITE_DOCS:
+    """Overwrite a construct document.
+
+    Valid for the agent-authored OVERWRITE_DOCS and the system-rendered RENDERED_DOCS
+    (e.g. EXPOSURE.md, written by the deterministic renderer in maintain).
+    """
+    if name not in OVERWRITE_DOCS and name not in RENDERED_DOCS:
         raise ValueError(f"{name} is not an overwrite document; use append_reflection()")
     _construct_dir().mkdir(parents=True, exist_ok=True)
     _doc_path(name).write_text(content, encoding="utf-8")

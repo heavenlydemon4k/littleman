@@ -39,6 +39,7 @@ def make_construct_skills() -> list[dict]:
                 "PRIORITIES.md": c.priorities,
                 "MACRO_PLAN.md": c.macro_plan,
                 "SELF.md": c.self_model,
+                "EXPOSURE.md": c.exposure,
                 "CALENDAR.md": c.calendar,
                 "DIRECTIVE.md": c.directive,
                 "REFLECTION.md": c.reflection,

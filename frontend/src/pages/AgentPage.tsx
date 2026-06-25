@@ -436,6 +436,7 @@ export function AgentPage() {
               <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <AuthoredCard title="Current directive" icon={Target} body={construct["DIRECTIVE.md"]} empty="No directive yet." />
                 <AuthoredCard title="Priorities" icon={ListChecks} body={summarise(construct["PRIORITIES.md"])} empty="No priorities yet." />
+                <AuthoredCard title="Exposure" icon={Activity} body={summarise(construct["EXPOSURE.md"])} empty="No exposure data yet." />
               </div>
             )}
 
