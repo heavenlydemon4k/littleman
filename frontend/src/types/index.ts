@@ -42,6 +42,28 @@ export interface WorkspaceFile {
   size: number;
 }
 
+// Live action feed — events emitted by a running wake (see littleman/agent/events.py)
+export type AgentEventType =
+  | "session_start"
+  | "stage"
+  | "reasoning"
+  | "tool_call"
+  | "tool_result"
+  | "session_done";
+
+export interface AgentEvent {
+  seq: number;
+  id: string;
+  agent_session_id: string;
+  type: AgentEventType;
+  payload: Record<string, unknown>;
+  created_at: string | null;
+}
+
+export type ActivityWsEvent =
+  | { type: "backlog"; events: AgentEvent[] }
+  | { type: "events"; events: AgentEvent[] };
+
 // WebSocket event types streamed from the backend
 export type WsEvent =
   | { type: "user_message"; message: ChatMessage }

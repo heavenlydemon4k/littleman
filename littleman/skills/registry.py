@@ -62,7 +62,23 @@ class SkillRegistry:
             raise ValueError(
                 f"Skill {name!r} is unavailable: missing config {skill.requires}"
             )
-        return await skill.fn(**args)
+
+        # Surface the call to the live action feed (no-op outside a wake; never raises).
+        from littleman.agent import events
+
+        await events.emit(
+            events.TOOL_CALL,
+            {"name": name, "cost": skill.cost, "args": events.shrink(args)},
+        )
+        try:
+            result = await skill.fn(**args)
+        except Exception as e:  # noqa: BLE001 — report the failure, then re-raise unchanged
+            await events.emit(events.TOOL_RESULT, {"name": name, "ok": False, "error": str(e)})
+            raise
+        await events.emit(
+            events.TOOL_RESULT, {"name": name, "ok": True, "summary": events.shrink(result)}
+        )
+        return result
 
     def get_definitions(self, only_available: bool = True) -> list[dict]:
         return [

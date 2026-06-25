@@ -54,6 +54,27 @@ class AgentSession(Base):
     outcome_summary = Column(Text, nullable=True)
 
 
+# ── Live activity feed ────────────────────────────────────────────────────────
+
+class AgentEvent(Base):
+    """A single observable event from a running wake — the live action feed substrate.
+
+    Wakes run in a different process than the API/WebSocket server (scheduler vs uvicorn)
+    and SQLite has no pub/sub, so events are delivered through the database: any process
+    appends rows; the API tails the table (WAL lets readers see cross-process commits).
+    `seq` is a monotonic cursor for tailing.
+    """
+
+    __tablename__ = "agent_events"
+
+    seq = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String, nullable=False, default=lambda: str(uuid4()))
+    agent_session_id = Column(String, nullable=False, index=True)
+    type = Column(String, nullable=False)  # session_start|stage|reasoning|tool_call|tool_result|session_done
+    payload = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 # ── Trading state ─────────────────────────────────────────────────────────────
 
 class Position(Base):

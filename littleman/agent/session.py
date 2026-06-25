@@ -27,6 +27,7 @@ log = logging.getLogger("session")
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from littleman.agent import events
 from littleman.agent.lock import SessionLock
 from littleman.db.connection import AsyncSessionLocal, init_db
 from littleman.db.models import AgentSession
@@ -66,6 +67,9 @@ async def _run_session_locked(
     # The registry needs a session factory so skills can open their own DB sessions.
     build_registry(db_session_factory=AsyncSessionLocal)
 
+    # Bind this wake to the live action feed for the duration of the run.
+    events.set_session(session_id)
+
     async with AsyncSessionLocal() as db:
         heartbeat_context: dict = dict(manual_context)
         hb = None
@@ -74,6 +78,16 @@ async def _run_session_locked(
             if hb:
                 heartbeat_context = hb.context or {}
                 await store.mark_running(db, heartbeat_id)
+
+        await events.emit(
+            events.SESSION_START,
+            {
+                "trigger": "autonomous" if heartbeat_id else "manual",
+                "heartbeat_id": heartbeat_id,
+                "reason": hb.reason if hb else None,
+                "session_type": hb.session_type if hb else None,
+            },
+        )
 
         try:
             # First Light if needed (or forced via --boot).
@@ -109,6 +123,9 @@ async def _run_session_locked(
                     else:
                         log.error("heartbeat %s failed; max retries exhausted", heartbeat_id[:8])
             raise
+        finally:
+            # Clear the feed binding so it never leaks into the next serial wake.
+            events.set_session(None)
 
 
 async def _run_pipeline(
@@ -139,6 +156,7 @@ async def _run_pipeline(
         heartbeat_context = {**heartbeat_context, "operator_guidance": [g.text for g in pending_guidance]}
 
     # 3-4. Situation -> directive (directive engine writes DIRECTIVE.md).
+    await events.emit(events.STAGE, {"stage": "situation", "label": "Reading situation"})
     situation = await synthesizer.synthesize(state, heartbeat_context)
 
     # Mark guidance consumed now that it has been passed to the synthesizer.
@@ -148,12 +166,26 @@ async def _run_pipeline(
             g.consumed_at = _now
         await db.flush()
     directive_payload = await directive.generate(situation)
+    await events.emit(
+        events.STAGE,
+        {
+            "stage": "directive",
+            "label": "Formed directive",
+            "session_type": directive_payload.get("session_type"),
+            "focus": directive_payload.get("primary_focus"),
+        },
+    )
 
     # 5. Strategy + task plan.
+    await events.emit(events.STAGE, {"stage": "planning", "label": "Planning tasks"})
     plan = await strategy.plan(db, directive_payload)
     tree = TaskTree.from_specs(plan["tasks"])
 
     # 6. Execute (serial, risk-gated).
+    await events.emit(
+        events.STAGE,
+        {"stage": "executing", "label": "Executing", "tasks": len(plan["tasks"])},
+    )
     ctx = ExecutionContext(
         db=db,
         registry=get_registry(),
@@ -164,6 +196,7 @@ async def _run_pipeline(
     exec_result = await run_tree(ctx, tree)
 
     # 7. Update world model + append a reflection entry.
+    await events.emit(events.STAGE, {"stage": "reflecting", "label": "Reflecting"})
     skills_used = exec_result.get("skills_used", [])
     failures = exec_result.get("failures", [])
     summary = (
@@ -193,12 +226,14 @@ async def _run_pipeline(
     # rather than a frozen First-Light snapshot (see mental-workspace-lifecycle.md).
     from littleman.meta.maintain import maintain_construct
 
+    await events.emit(events.STAGE, {"stage": "maintaining", "label": "Maintaining construct"})
     try:
         await maintain_construct(directive_payload, summary, exec_result)
     except Exception:  # noqa: BLE001 — maintenance must never break a wake
         pass
 
     # 8. Self-scheduler plans future heartbeats.
+    await events.emit(events.STAGE, {"stage": "scheduling", "label": "Scheduling next wake"})
     hb_plan = await planner.plan_and_schedule(
         db, state, session_summary=summary, spawned_by=heartbeat_id
     )
@@ -239,6 +274,13 @@ async def _finish(
         await log_main(db, narration)
     except Exception:  # noqa: BLE001 — narration must never fail a session
         pass
+
+    # Close out the live action feed for this wake, then bound the table's growth.
+    await events.emit(
+        events.SESSION_DONE,
+        {"summary": summary, "session_type": (directive_payload or {}).get("session_type")},
+    )
+    await events.prune()
 
     return {
         "session_id": session_id,

@@ -18,3 +18,6 @@ workspace/state/
 workspace/construct/*.md
 !workspace/construct/*.template.md
 node_modules/
+
+# Claude Code local settings
+.claude/

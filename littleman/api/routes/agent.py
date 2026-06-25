@@ -11,7 +11,7 @@ import asyncio
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -369,6 +369,45 @@ async def get_construct():
             "REFLECTION.md": c.reflection,
         },
     }
+
+
+# ── Live action feed ──────────────────────────────────────────────────────────
+
+@router.get("/activity")
+async def get_activity(limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """Recent activity events (oldest-first) for initial paint / replay."""
+    from littleman.agent import events
+
+    return {"events": await events.recent(db, limit=limit)}
+
+
+@router.websocket("/activity/ws")
+async def activity_ws(ws: WebSocket):
+    """Tail the agent_event table and push new events to the client.
+
+    A wake may run in a different process (the scheduler), so this polls the table rather
+    than subscribing to an in-process bus. A fresh DB session per poll guarantees it sees
+    rows committed by other processes (WAL). ~0.75s latency is invisible for a watched feed.
+    """
+    from littleman.agent import events
+    from littleman.db.connection import AsyncSessionLocal
+
+    await ws.accept()
+    async with AsyncSessionLocal() as db:
+        backlog = await events.recent(db, limit=100)
+    last_seq = backlog[-1]["seq"] if backlog else 0
+    await ws.send_json({"type": "backlog", "events": backlog})
+
+    try:
+        while True:
+            await asyncio.sleep(0.75)
+            async with AsyncSessionLocal() as db:
+                new = await events.tail(db, since_seq=last_seq)
+            if new:
+                last_seq = new[-1]["seq"]
+                await ws.send_json({"type": "events", "events": new})
+    except WebSocketDisconnect:
+        pass
 
 
 # ── Controls ──────────────────────────────────────────────────────────────────

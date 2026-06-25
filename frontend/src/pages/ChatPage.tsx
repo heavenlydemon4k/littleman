@@ -3,7 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import clsx from "clsx";
 import { MessageItem } from "../components/chat/MessageItem";
 import { ChatInput } from "../components/chat/ChatInput";
+import { ActivityFeed } from "../components/activity/ActivityFeed";
 import { useChat } from "../hooks/useChat";
+import { useActivity } from "../hooks/useActivity";
 import { Wifi, WifiOff, Loader2, Plus, Bot, ChevronDown, Pencil, Check, X, Play, Circle } from "lucide-react";
 import type { ChatMessage } from "../types";
 
@@ -11,6 +13,9 @@ export function ChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { messages, streaming, status, sendMessage, stopStreaming, reconnect } = useChat(sessionId ?? null);
+
+  // The Main session mirrors the agent's autonomous activity, so it carries the live action feed.
+  const activity = useActivity(sessionId === "main");
 
   // Session title
   const [sessionTitle, setSessionTitle] = useState<string>("");
@@ -82,7 +87,7 @@ export function ChatPage() {
   useEffect(() => {
     if (isAtBottom) scrollToBottom();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
+  }, [messages, activity.length]);
 
   // New conversation
   const createSession = async () => {
@@ -278,9 +283,12 @@ export function ChatPage() {
             )}
           </div>
         ) : (
-          messages.map((m) => (
-            <MessageItem key={m.id} message={m as ChatMessage & { _streaming?: boolean }} />
-          ))
+          <>
+            {messages.map((m) => (
+              <MessageItem key={m.id} message={m as ChatMessage & { _streaming?: boolean }} />
+            ))}
+            {isMain && <ActivityFeed events={activity} />}
+          </>
         )}
       </div>
 

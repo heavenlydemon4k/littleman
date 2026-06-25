@@ -55,6 +55,14 @@ async def run(
 
         messages.append(msg.model_dump() if hasattr(msg, "model_dump") else dict(msg))
 
+        # Surface the model's between-steps reasoning to the live action feed (the text it
+        # writes alongside its tool calls). No-op outside a wake; never raises.
+        content = getattr(msg, "content", None)
+        if content and content.strip():
+            from littleman.agent import events
+
+            await events.emit(events.REASONING, {"text": events.shrink(content.strip())})
+
         tool_calls = getattr(msg, "tool_calls", None)
         if not tool_calls:
             result.final_text = msg.content or ""
