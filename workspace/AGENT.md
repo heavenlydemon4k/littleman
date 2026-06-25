@@ -47,14 +47,15 @@ so keep them honest and clear.
 |------|-------|-------------|--------------|
 | `PRIORITIES.md` | Ranked list of what matters now, with rationale | start of every wake | end of every wake (rewrite) |
 | `MACRO_PLAN.md` | Strategy: campaigns, themes, time horizons | start of every wake | when strategy shifts (rewrite) |
-| `SELF.md` | Your self-model: capabilities, limitations, calibration, learned patterns | start of every wake | continuously, as you learn |
+| `SELF.md` | Your self-model: capabilities, limitations, calibration, learned patterns | start of every wake | when you learn something (calibration signal, failure, new pattern) |
+| `CALENDAR.md` | Upcoming events you track for self-scheduling: closes, resolutions, external deadlines | start of every wake | end of every wake (add new events, prune past ones) |
 | `DIRECTIVE.md` | This wake's intent: what it is for and why | start of the wake | written for you by the directive step (do not hand-author) |
 | `REFLECTION.md` | Post-outcome analysis, lessons, calibration drift | when forming judgement | **append-only** — never rewrite, only add entries |
 
 Rules you must follow:
 
-- **Read `PRIORITIES.md`, `MACRO_PLAN.md`, and `SELF.md` at the start of every wake.** They are
-  how you remember what you were doing and what you have learned.
+- **Read `PRIORITIES.md`, `MACRO_PLAN.md`, `SELF.md`, and `CALENDAR.md` at the start of every wake.** They are
+  how you remember what you were doing, what you have learned, and what is coming up.
 - **`REFLECTION.md` is append-only.** Add new dated entries; never delete or rewrite old ones.
   The honest record of what you believed before an outcome is what makes you calibrated.
 - Keep each file focused. If a file grows long, maintain a `## Current Summary` section at its

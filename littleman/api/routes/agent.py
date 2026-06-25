@@ -365,6 +365,7 @@ async def get_construct():
             "PRIORITIES.md": c.priorities,
             "MACRO_PLAN.md": c.macro_plan,
             "SELF.md": c.self_model,
+            "CALENDAR.md": c.calendar,
             "DIRECTIVE.md": c.directive,
             "REFLECTION.md": c.reflection,
         },
