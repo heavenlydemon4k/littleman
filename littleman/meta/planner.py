@@ -6,6 +6,9 @@ heartbeat records. It is the mechanism that makes the agent's schedule self-prop
 Deterministic cascade rules (resolution checks, research windows, idle fallback) are applied
 in code; the LLM is used to decide amendments/cancellations and to fill intent-carrying
 context, but the core scheduling decisions do not require a model call.
+
+CALENDAR.md integration: the agent's CALENDAR.md is passed to the LLM refinement step so
+agent-discovered events (not covered by the deterministic cascade) can also produce heartbeats.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from littleman.config import settings
 from littleman.heartbeat import store
 from littleman.llm.complete import complete_json
 from littleman.llm.prompts import HEARTBEAT_PLAN_SYSTEM, HEARTBEAT_PLAN_USER, render
+from littleman.meta import construct
 from littleman.meta.world_model import WorldModelState
 
 _CATEGORY_LEAD = {"politics": 2.0, "sports": 0.5, "crypto": 0.25}
@@ -127,9 +131,17 @@ async def plan_and_schedule(
     amend: list[dict[str, Any]] = []
 
     # Optional LLM pass to amend/cancel stale scheduled heartbeats and enrich context.
+    # CALENDAR.md is included so the LLM can create heartbeats for agent-discovered events
+    # that don't appear in the deterministic position/market cascade.
     if use_llm_refinement and state.next_heartbeats:
         try:
             scheduled = [h.model_dump() for h in state.next_heartbeats]
+            calendar_content = construct.load().calendar or ""
+            calendar_block = (
+                f"\n\nAgent CALENDAR.md (upcoming events the agent tracks):\n{calendar_content}"
+                if calendar_content.strip()
+                else ""
+            )
             system = render(
                 HEARTBEAT_PLAN_SYSTEM,
                 idle_hours=settings.idle_heartbeat_interval_hours,
@@ -141,7 +153,7 @@ async def plan_and_schedule(
                 positions_json=json.dumps([p.model_dump() for p in state.open_positions]),
                 watched_markets_json=json.dumps(state.watched_markets),
                 scheduled_heartbeats_json=json.dumps(scheduled),
-            )
+            ) + calendar_block
             refined = await complete_json(system, user, tier="secondary")
             # Trust the LLM only for amend/cancel; creation stays deterministic.
             cancel = refined.get("cancel", [])

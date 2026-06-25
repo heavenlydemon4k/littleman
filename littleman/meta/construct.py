@@ -7,6 +7,7 @@ Documents:
     PRIORITIES.md   — ranked priority stack (overwrite each session)
     MACRO_PLAN.md   — strategic agenda (overwrite when plans shift)
     SELF.md         — runtime self-model: capabilities, calibration, learned patterns
+    CALENDAR.md     — upcoming events the agent tracks for self-scheduling
     DIRECTIVE.md    — current session's directive (overwrite each session)
     REFLECTION.md   — append-only learning log
 
@@ -22,7 +23,7 @@ from pathlib import Path
 from littleman.config import settings
 
 # Documents that are overwritten wholesale by the agent each time they change.
-OVERWRITE_DOCS = ("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md", "DIRECTIVE.md")
+OVERWRITE_DOCS = ("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md", "CALENDAR.md", "DIRECTIVE.md")
 # Documents that only ever grow.
 APPEND_DOCS = ("REFLECTION.md",)
 
@@ -62,6 +63,7 @@ class Construct:
     priorities: str
     macro_plan: str
     self_model: str
+    calendar: str
     directive: str
     reflection: str
 
@@ -87,6 +89,7 @@ class Construct:
             "PRIORITIES.md": self.priorities,
             "MACRO_PLAN.md": self.macro_plan,
             "SELF.md": self.self_model,
+            "CALENDAR.md": self.calendar,
             "DIRECTIVE.md": self.directive,
             "REFLECTION.md": self.reflection,
         }
@@ -127,6 +130,7 @@ def load() -> Construct:
         priorities=read("PRIORITIES.md"),
         macro_plan=read("MACRO_PLAN.md"),
         self_model=read("SELF.md"),
+        calendar=read("CALENDAR.md"),
         directive=read("DIRECTIVE.md"),
         reflection=read("REFLECTION.md"),
     )

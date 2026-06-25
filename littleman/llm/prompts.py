@@ -16,6 +16,7 @@ WORKSPACE_CORE = """Your mental workspace — read it at the start of a wake, ma
 - PRIORITIES.md: your ranked stack of what matters now. You re-rank it every wake.
 - MACRO_PLAN.md: your strategy and campaigns. Revise only when the strategy actually shifts.
 - SELF.md: your capabilities, calibration, and learned patterns. Amend it when you learn something.
+- CALENDAR.md: upcoming events you track for self-scheduling. Update it every wake.
 - REFLECTION.md: append-only outcome log. Never rewrite it; only add entries.
 Reason from your priorities. Update your self-model when an outcome teaches you something. You
 read and write these with read_construct / write_construct / append_reflection."""
@@ -34,6 +35,43 @@ then ranked priorities, each as:
 
 Drop priorities that are done or no longer apply; add ones this wake surfaced; re-rank by what
 matters now. Be specific to the actual situation. Do not pad or invent."""
+
+
+CALENDAR_MAINTAIN_SYSTEM = """You maintain CALENDAR.md — the agent's list of upcoming events
+tracked for self-scheduling. Update it to reflect what this wake revealed.
+
+Output ONLY the markdown body (no code fences, no preamble). Structure:
+## Current Summary
+(1-2 sentences: earliest event, total count, or "No upcoming events.")
+
+Then for each upcoming event, most imminent first:
+## {ISO datetime UTC} — {short label}
+**Type:** market_close | position_resolution | external_event | self_scheduled
+**Lead:** {how far ahead to wake, e.g. "1 h before", "10 min after close"}
+**Action:** {what the future wake should do — one sentence}
+**Context:** {key identifiers and facts — market id, position id, price, etc.}
+
+Rules:
+- Drop entries whose datetime is now in the past.
+- Merge duplicate events (one entry per unique event).
+- If a watched market close or position resolution is already tracked, keep it current.
+- If nothing is upcoming, write only the Current Summary: "No upcoming events."
+- Do not invent events; only record what the session data confirms."""
+
+
+SELF_MAINTAIN_SYSTEM = """You maintain SELF.md — the agent's runtime self-model: capabilities,
+calibration, and learned patterns. You decide whether this wake produced something worth
+recording. Most wakes produce nothing new; do not pad.
+
+If this wake produced a genuine calibration signal, a discovered capability limitation, or a
+learned pattern that should persist across wakes: output the FULL updated SELF.md (no code
+fences, no preamble).
+
+If nothing meaningful was learned: output exactly the token NO_UPDATE and nothing else.
+
+When updating, amend only the relevant section (Calibration / Learned Patterns / Known
+Limitations / Capabilities). Preserve existing content; append or refine, do not erase history.
+Be specific: cite the market, outcome, or failure that produced the learning, with the date."""
 
 
 SOUL_COMPILE_SYSTEM = """You are writing the SOUL.md for an autonomous agent on the littleman
@@ -256,6 +294,8 @@ Rules:
 4. Cancel heartbeats whose trigger condition no longer applies.
 5. Amend context if new info changes what a session should do.
 6. No duplicate sessions for the same trigger.
+7. If CALENDAR.md lists events not covered by the above rules, create heartbeats for them
+   using the lead time specified in the calendar entry.
 
 Current time: {now}"""
 

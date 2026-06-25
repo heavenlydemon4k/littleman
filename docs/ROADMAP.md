@@ -5,37 +5,39 @@ source of truth for "what's done vs next".
 
 ---
 
-## ⚑ Recent handoff (platform UI generalization — DONE)
+## ⚑ Recent handoff (CALENDAR.md + SELF.md maintenance — DONE)
 
-Built, tested (65 green), and committed. Verified: tsc + production build clean; Agent dashboard
-shows only real/agent-authored data (no Polymarket placeholders); heartbeats `[]` on a clean DB;
-`/skills/{name}/doc` returns rich content for every skill; Connections tab carries the
-integrations. Heartbeats confirmed not to auto-prompt the LLM (gated by the Autonomous toggle,
-default off).
+Built, tested (78 green), committed on `feat/live-action-feed`.
 
-**What this pass changed (de-Polymarket the platform UI):**
-- `frontend/src/pages/ConnectionsPage.tsx` (new) + `App.tsx` route + `Sidebar.tsx` "Connections"
-  (Plug) link — generic integrations view (LLM, web search, Polymarket wallet) with live status;
-  the wallet balance/positions/Reconcile moved here off the dashboard.
-- `frontend/src/pages/AgentPage.tsx` — removed the trading stat cards, connection chips, the
-  "app:" chip, the Reconcile button, the Positions tab, and the run-session text field; the
-  Overview now shows an **agent-authored** headline (`AuthoredCard` for the current DIRECTIVE and
-  PRIORITIES, pulled from the construct the agent writes via `write_construct`). Heartbeat empty
-  copy fixed.
-- `littleman/api/routes/agent.py` — `/skills/{name}/doc` now builds a rich doc from the registry
-  (description, params, cost, availability) + appends any topic doc, so no skill shows empty.
-- `frontend/src/components/chat/ChatInput.tsx` — generic disclaimer (no "bets").
+**What this pass changed:**
 
-**Verified facts (so the next session does not re-investigate):**
-- Heartbeats do NOT auto-prompt the LLM by default: they fire only when `python -m littleman
-  scheduler` runs AND Autonomous is ON AND a heartbeat is due. The API/UI alone never fires them;
-  the dashboard's 5s poll is read-only.
-- `.env` holds a working Kimi/Moonshot key (`LLM_MODE=real`); it is gitignored — keep it, never
-  commit it.
+- `workspace/construct/CALENDAR.template.md` (new) — the agent's upcoming-events calendar;
+  includes format instructions and maintenance rules (most imminent first, prune past entries).
+- `littleman/meta/construct.py` — added `CALENDAR.md` to `OVERWRITE_DOCS` and the `Construct`
+  dataclass (`calendar: str` field); `load()` and `as_prompt_block()` updated accordingly.
+- `littleman/llm/prompts.py` — added `CALENDAR_MAINTAIN_SYSTEM` and `SELF_MAINTAIN_SYSTEM`
+  prompts; updated `WORKSPACE_CORE` and `HEARTBEAT_PLAN_SYSTEM` to reference CALENDAR.md.
+- `littleman/meta/maintain.py` — now maintains three docs per wake:
+  - `PRIORITIES.md` (always, was already done)
+  - `CALENDAR.md` (always — prune past events, add newly discovered ones)
+  - `SELF.md` (conditionally — only when failures or bets placed, gated on `NO_UPDATE` signal)
+- `littleman/meta/planner.py` — LLM refinement step now receives CALENDAR.md content so
+  agent-discovered events can produce heartbeats beyond the deterministic cascade.
+- `littleman/agent/session.py` — passes a world model snapshot to `maintain_construct()` so
+  CALENDAR.md can track open positions and watched markets.
+- `littleman/skills/construct_skills.py` — `read_construct` and `write_construct` now include
+  `CALENDAR.md` in their doc mappings.
+- `workspace/AGENT.md` §3 — added CALENDAR.md row to the workspace table; updated the "read
+  at start of every wake" rule to include it.
+- `tests/test_construct.py` — 4 new CALENDAR tests (is_overwrite_doc, write/load, in prompt
+  block, excluded from selective block); 11 passing.
+- `tests/test_hardening.py` — `_construct()` helper updated to include `calendar=""`.
 
-**Still pending after this:** push to a new GitHub repo (no remote yet; `gh` not installed — user
-creates the empty repo, then `git remote add origin … && git push -u origin main`); rotate the
-Kimi key before going public (it appeared in chat). Then resume the forward plan below.
+**Verified facts:**
+- `78 tests passing` (was 65 before the live-action-feed pass, now includes both passes).
+- `construct.is_initialised()` now requires CALENDAR.md to exist (alongside the original 4).
+- SELF.md is updated at most once per wake, only when there is genuine signal; idle wakes
+  leave it untouched.
 
 ---
 
@@ -44,13 +46,13 @@ Kimi key before going public (it appeared in chat). Then resume the forward plan
 **Platform core**
 - Wake/sleep model with self-authored **heartbeats**; dumb scheduler (poll + fire), gated by an
   **autonomous** toggle (off by default), with stale-session recovery + exponential-backoff retry.
-- **Mental construct** (PRIORITIES / MACRO_PLAN / SELF / DIRECTIVE / REFLECTION) that is read at
-  the start of every wake and **maintained at the end** (priorities re-ranked) — a living memory,
-  not a snapshot.
+- **Mental construct** (PRIORITIES / MACRO_PLAN / SELF / CALENDAR / DIRECTIVE / REFLECTION) that
+  is read at the start of every wake and **maintained at the end** — a living memory, not a
+  snapshot: priorities re-ranked, calendar refreshed, and self-model conditionally updated.
 - **Turn cycle**: reconcile → situate → directive → strategy/tasks → ReAct skill execution →
-  reflect → maintain → self-schedule.
+  reflect → maintain (PRIORITIES + CALENDAR + SELF) → self-schedule.
 - **Skill registry** (22 skills) with requirement gating + on-demand `read_skill_doc`; the agent
-  reads/writes its own files via construct skills.
+  reads/writes its own files via construct skills (including CALENDAR.md).
 - **LLM provider abstraction** (LiteLLM): real (Kimi/Anthropic/OpenAI/OpenRouter/Ollama) or a
   deterministic fake for tests; runtime model/mode editable live in the UI.
 - **Cross-process session lock**; serial execution (ADR 0001).
@@ -59,29 +61,32 @@ Kimi key before going public (it appeared in chat). Then resume the forward plan
 **Onboarding & First Light**
 - Compulsory first-run onboarding: shared welcome (name → purpose → provider/model) → guided
   questionnaire or custom → answers richly compiled into `SOUL.md`.
-- **Agentic First Light**: the agent reads `AGENT.md` (operating manual) + `SOUL.md` + onboarding
-  answers and authors its own construct, then greets the operator in chat (a button, not a field,
-  with live status). Deterministic safety net guarantees a usable construct.
+- **Agentic First Light**: the agent reads `AGENT.md` + `SOUL.md` + onboarding answers and
+  authors its own construct (incl. CALENDAR.md), then greets the operator in chat.
 
 **Frontend**
-- Onboarding flow, chat (Main agent session + user chats, thinking/skills toggles, stop/rename),
-  agent dashboard (status, connections, heartbeats, sessions, construct, controls), workspace
-  editor, settings (LLM runtime + monochrome-default customizable theme).
+- Onboarding flow, chat, agent dashboard, workspace editor, settings (LLM runtime + theme).
+- Live action feed (`feat/live-action-feed` branch): DB-based pub/sub between scheduler and API;
+  `ActivityFeed.tsx` + `useActivity.ts` consuming `/api/agent/activity/ws`.
 
 **Polymarket reference application**
-- Live market reads (scan/market/orderbook/resolution) and **read-only** wallet reconcile (real
-  pUSD balance + positions, no spend).
+- Live market reads (scan/market/orderbook/resolution) and read-only wallet reconcile.
 
-**Tests:** 65 passing. Verified live against Kimi where noted.
+**Tests:** 78 passing.
 
 ---
 
 ## Where development paused
 
-Paused after making the mental workspace *living* (the MAINTAIN step + continuous onboarding via
-`WORKSPACE_CORE`). The immediate next item under discussion was extending the construct with
-`CALENDAR.md` (which feeds self-scheduling) and having MAINTAIN also update `SELF.md` from
-calibration. See `docs/design/mental-workspace-lifecycle.md` §4 for the agreed expansion order.
+Paused after completing the CALENDAR.md + SELF.md maintenance additions (items 1 and 2 from the
+forward plan). The construct is now a genuinely living workspace: priorities, calendar, and
+self-model all update each wake; the self-scheduler reads CALENDAR.md for agent-discovered events.
+
+Push still pending: local branch `feat/live-action-feed` is ahead of `origin/main`. Run:
+```
+git push -u origin feat/live-action-feed
+git checkout main && git merge feat/live-action-feed --ff-only && git push origin main
+```
 
 ---
 
@@ -89,24 +94,21 @@ calibration. See `docs/design/mental-workspace-lifecycle.md` §4 for the agreed 
 
 Near-term, in rough priority:
 
-1. **`CALENDAR.md`** in the construct lifecycle — the agent records upcoming events/closes and
-   the self-scheduler reads it, tying the workspace directly to heartbeat scheduling.
-2. **MAINTAIN → SELF.md** — conditionally update the self-model/calibration each wake, not just
-   priorities.
-3. **`EXPOSURE.md`** — a readable risk map mirroring the world model for the agent to reason over.
-4. **Custom-path self-config skill** (`update_self`) — so custom onboarding genuinely writes the
-   operator's `SOUL.md` through conversation.
-5. **Turn cycle PLAN.md → TURNS.md** — the N-turn execution window from the architecture meta.
-6. **OpenClaw `SKILL.md` filesystem loader** — marketplace-compatible skills beyond the built-in
-   Python registry.
+1. **`EXPOSURE.md`** — a readable risk map mirroring the world model (open positions, exposure,
+   drawdown) for the agent to reason over during the directive/strategy step.
+2. **Custom-path self-config skill** (`update_self`) — so custom onboarding genuinely writes the
+   operator's `SOUL.md` through conversation; gated to the custom onboarding path.
+3. **Turn cycle PLAN.md → TURNS.md** — the N-turn execution window from the architecture meta;
+   lets the agent track multi-turn task state explicitly.
+4. **OpenClaw `SKILL.md` filesystem loader** — marketplace-compatible skills beyond the built-in
+   Python registry; loads from `workspace/skills/*.md` + matching Python modules.
 
 Longer-term / deliberately deferred:
 
-- **Live Polymarket order signing** (the one money-moving stub) — needs a funded signing wallet +
-  `py-clob-client-v2`; gated behind the risk governor and autonomous toggle. Plan in
-  `docs/applications/polymarket.md`.
-- Remaining expanded docs (HYPOTHESES / BLOCKERS / SKILL_NOTES) when the agent's behaviour shows
-  it needs them.
+- **Live Polymarket order signing** — needs a funded signing wallet + `py-clob-client-v2`;
+  gated behind the risk governor and autonomous toggle.
+- Remaining expanded docs (HYPOTHESES / BLOCKERS / SKILL_NOTES) when the agent's behaviour
+  shows it needs them.
 - Calibration loop writing measured accuracy back into SELF over many resolved outcomes.
 
 ---

@@ -67,3 +67,30 @@ def test_seed_does_not_clobber_existing(temp_workspace):
     construct.write_doc("PRIORITIES.md", "AGENT_WRITTEN")
     construct.seed_from_templates()  # second call must not overwrite
     assert "AGENT_WRITTEN" in construct.load().priorities
+
+
+def test_calendar_is_overwrite_doc(temp_workspace):
+    assert "CALENDAR.md" in construct.OVERWRITE_DOCS
+
+
+def test_write_and_load_calendar(temp_workspace):
+    construct.seed_from_templates()
+    construct.write_doc("CALENDAR.md", "## Current Summary\n- 2 events upcoming\n")
+    loaded = construct.load()
+    assert "2 events upcoming" in loaded.calendar
+
+
+def test_calendar_in_prompt_block(temp_workspace):
+    construct.seed_from_templates()
+    construct.write_doc("CALENDAR.md", "CALENDAR_CONTENT")
+    block = construct.load().as_prompt_block(include=("CALENDAR.md",))
+    assert "CALENDAR_CONTENT" in block
+
+
+def test_calendar_excluded_from_selective_block(temp_workspace):
+    construct.seed_from_templates()
+    construct.write_doc("CALENDAR.md", "CALENDAR_CONTENT")
+    construct.write_doc("PRIORITIES.md", "PRIO_CONTENT")
+    block = construct.load().as_prompt_block(include=("PRIORITIES.md",))
+    assert "CALENDAR_CONTENT" not in block
+    assert "PRIO_CONTENT" in block

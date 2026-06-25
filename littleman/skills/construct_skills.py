@@ -39,6 +39,7 @@ def make_construct_skills() -> list[dict]:
                 "PRIORITIES.md": c.priorities,
                 "MACRO_PLAN.md": c.macro_plan,
                 "SELF.md": c.self_model,
+                "CALENDAR.md": c.calendar,
                 "DIRECTIVE.md": c.directive,
                 "REFLECTION.md": c.reflection,
             }
@@ -91,7 +92,7 @@ def make_construct_skills() -> list[dict]:
         {
             "name": "write_construct",
             "fn": write_construct,
-            "description": "Overwrite one of your construct documents (PRIORITIES.md, MACRO_PLAN.md, SELF.md, DIRECTIVE.md).",
+            "description": "Overwrite one of your construct documents (PRIORITIES.md, MACRO_PLAN.md, SELF.md, CALENDAR.md, DIRECTIVE.md).",
             "parameters": {
                 "type": "object",
                 "properties": {"doc": {"type": "string"}, "content": {"type": "string"}},

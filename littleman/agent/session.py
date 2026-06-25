@@ -222,13 +222,20 @@ async def _run_pipeline(
         ) + "\n"
     construct.append_reflection(reflection)
 
-    # 7b. MAINTAIN the construct — re-rank PRIORITIES so the workspace stays a living memory
-    # rather than a frozen First-Light snapshot (see mental-workspace-lifecycle.md).
+    # 7b. MAINTAIN the construct — re-rank PRIORITIES, refresh CALENDAR, and conditionally
+    # update SELF so the workspace stays a living memory, not a frozen snapshot.
+    # See docs/design/mental-workspace-lifecycle.md.
     from littleman.meta.maintain import maintain_construct
 
     await events.emit(events.STAGE, {"stage": "maintaining", "label": "Maintaining construct"})
     try:
-        await maintain_construct(directive_payload, summary, exec_result)
+        # Pass a lightweight world snapshot so the calendar can track open positions/markets.
+        _wm_snapshot = {
+            "open_positions": [p.model_dump() for p in state.open_positions],
+            "watched_markets": state.watched_markets,
+            "pending_resolutions": [p.model_dump() for p in state.pending_resolutions],
+        }
+        await maintain_construct(directive_payload, summary, exec_result, world_state=_wm_snapshot)
     except Exception:  # noqa: BLE001 — maintenance must never break a wake
         pass
 
