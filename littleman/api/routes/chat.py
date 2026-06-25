@@ -12,14 +12,14 @@ from sqlalchemy.orm import selectinload
 
 from littleman.config import settings
 from littleman.db.connection import get_db
-from littleman.db.models import ChatMessage, ChatSession, LLMConfig
+from littleman.db.models import ChatMessage, ChatSession
 from littleman.llm.client import build_tool_definitions, load_soul
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 log = logging.getLogger("littleman.chat")
 
 
-# ── REST: session management ──────────────────────────────────────────────────
+# REST: session management
 
 @router.get("/sessions")
 async def list_sessions(db: AsyncSession = Depends(get_db)):
@@ -87,12 +87,6 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/sessions/{session_id}/suggestions")
 async def suggest_prompts(session_id: str, db: AsyncSession = Depends(get_db)):
-    """LLM-generated predictive prompts the operator is likely considering next.
-
-    Opt-in (the frontend's suggestion toggle is off by default) and only ever invoked on
-    explicit operator activity — never on idle — so it does not breach the zero-token-when-idle
-    invariant. Routed through the provider abstraction so it runs on the scripted fake in tests.
-    """
     from littleman.llm.prompts import CHAT_SUGGESTIONS_SYSTEM, CHAT_SUGGESTIONS_USER
     from littleman.llm.provider import get_provider
 
@@ -102,14 +96,13 @@ async def suggest_prompts(session_id: str, db: AsyncSession = Depends(get_db)):
         .order_by(ChatMessage.created_at)
     )
     messages = result.scalars().all()
-    # Compact transcript of the recent exchange (most recent dozen turns is plenty of context).
     lines = []
     for m in messages[-12:]:
         if m.role in ("user", "assistant") and m.content:
             lines.append(f"{m.role}: {m.content[:300]}")
     transcript = "\n".join(lines) or "(no messages yet)"
 
-    model = await _resolve_model(db)
+    model = _resolve_model()
     try:
         raw = await get_provider().complete(
             model,
@@ -136,7 +129,7 @@ async def get_messages(session_id: str, db: AsyncSession = Depends(get_db)):
     return [_serialise_message(m) for m in messages]
 
 
-# ── WebSocket: streaming chat ─────────────────────────────────────────────────
+# WebSocket: streaming chat
 
 @router.websocket("/sessions/{session_id}/ws")
 async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get_db)):
@@ -175,7 +168,7 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
             await ws.send_json({"type": "user_message", "message": _serialise_message(user_msg)})
 
             history = await _load_history(session_id, db)
-            model = await _resolve_model(db)
+            model = _resolve_model()
             soul = load_soul()
             tools = _chat_tools() if skills_on else []
 
@@ -186,9 +179,6 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
             accumulated_thinking = ""
             pending_tool_calls: list[dict] = []
 
-            # Never let an LLM/provider failure die silently: surface it to the client as an
-            # `error` frame (the model config is wrong, the key is bad, the host is down, …) and
-            # still close out the turn so the UI resolves instead of hanging on the placeholder.
             try:
                 async for event in _stream_llm(model, soul, history, tools, thinking_on):
                     await ws.send_json(event)
@@ -199,14 +189,13 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
                         accumulated_thinking += event["content"]
                     elif event["type"] == "tool_call":
                         pending_tool_calls.append(event["call"])
-            except Exception as e:  # noqa: BLE001 — any provider error must reach the operator
+            except Exception as e:
                 log.exception("chat stream failed for session %s", session_id)
                 detail = f"{type(e).__name__}: {e}"
                 await ws.send_json({"type": "error", "message": detail})
-                # Persist the failure as the assistant turn so it survives reload, not a blank.
                 db.add(ChatMessage(
                     id=assistant_id, session_id=session_id, role="assistant",
-                    content=f"⚠️ Generation failed — {detail}",
+                    content=f"Generation failed -- {detail}",
                 ))
                 await db.commit()
                 await ws.send_json({"type": "assistant_done", "id": assistant_id})
@@ -229,10 +218,9 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
         pass
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# Helpers
 
 def _strip_code_fence(text: str) -> str:
-    """Tolerate models that wrap JSON in a ```json fence."""
     t = text.strip()
     if t.startswith("```"):
         t = t.split("\n", 1)[-1] if "\n" in t else t
@@ -291,18 +279,19 @@ async def _load_history(session_id: str, db: AsyncSession) -> list[dict]:
     return out
 
 
-async def _resolve_model(db: AsyncSession) -> str:
-    result = await db.execute(select(LLMConfig).where(LLMConfig.is_primary == True))
-    cfg = result.scalar_one_or_none()
-    if cfg:
-        return cfg.model
+def _resolve_model() -> str:
+    """The chat model = the agent's runtime primary — one source of truth (Settings -> Model).
+
+    Chat and the agent now share a single model config, so a chat reply always uses the same
+    provider/credentials as everything else. (Previously chat could take a saved LLMConfig row's
+    model string while still sending the runtime's key -- a silent mismatch.)
+    """
     from littleman.llm import runtime
 
     return runtime.model_for("primary")
 
 
 def _chat_tools() -> list[dict]:
-    """Real skill definitions for the chat, from the live registry (built at app startup)."""
     from littleman.skills.registry import get_registry
 
     try:
@@ -324,18 +313,15 @@ async def _stream_llm(
         "model": model,
         "messages": messages,
         "stream": True,
-        # Pick up OpenAI-compatible endpoint/credentials (Kimi/Moonshot, OpenRouter, …).
         **completion_kwargs(),
     }
     if tools:
         kwargs["tools"] = tools
 
-    # Thinking mode: enable the model's native reasoning where supported.
     if thinking:
         if model.startswith("anthropic/"):
             kwargs["thinking"] = {"type": "enabled", "budget_tokens": 5000}
         else:
-            # OpenAI-compatible reasoning models (Kimi k2.x, o-series, …).
             kwargs["reasoning_effort"] = "medium"
 
     response = await litellm.acompletion(**kwargs)
@@ -348,16 +334,13 @@ async def _stream_llm(
         if delta is None:
             continue
 
-        # Thinking blocks (Anthropic extended thinking)
         if hasattr(delta, "thinking") and delta.thinking:
             yield {"type": "thinking", "content": delta.thinking}
             continue
 
-        # Regular text token
         if delta.content:
             yield {"type": "token", "content": delta.content}
 
-        # Tool call streaming
         if delta.tool_calls:
             for tc_delta in delta.tool_calls:
                 if tc_delta.id:

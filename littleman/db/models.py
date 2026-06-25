@@ -205,20 +205,3 @@ class Profile(Base):
     answers = Column(JSON, nullable=True)              # full guided questionnaire answers
     onboarded_at = Column(DateTime(timezone=True), nullable=True)  # null = not yet onboarded
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
-
-# ── LLM provider config ───────────────────────────────────────────────────────
-
-class LLMConfig(Base):
-    __tablename__ = "llm_configs"
-
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False, unique=True)
-    provider = Column(String, nullable=False)    # anthropic | openai | ollama | litellm
-    model = Column(String, nullable=False)       # full litellm model string
-    api_key = Column(String, nullable=True)
-    base_url = Column(String, nullable=True)
-    is_primary = Column(Boolean, nullable=False, default=False)
-    is_secondary = Column(Boolean, nullable=False, default=False)
-    extra_params = Column(JSON, nullable=False, default=dict)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -31,18 +31,6 @@ export interface ChatMessage {
   created_at: string;
 }
 
-export interface LLMConfig {
-  id: string;
-  name: string;
-  provider: string;
-  model: string;
-  api_key: string | null;
-  base_url: string | null;
-  is_primary: boolean;
-  is_secondary: boolean;
-  extra_params: Record<string, unknown>;
-  created_at: string;
-}
 
 export interface WorkspaceFile {
   path: string;
