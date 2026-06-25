@@ -5,9 +5,35 @@ source of truth for "what's done vs next".
 
 ---
 
-## ⚑ Recent handoff (CALENDAR.md + SELF.md maintenance — DONE)
+## ⚑ Recent handoff (live action feed + CALENDAR.md + SELF.md maintenance — DONE)
 
-Built, tested (78 green), committed on `feat/live-action-feed`.
+Built, tested (**84 green**), and **integrated onto `main`** (fast-forward; the feature
+branches `feat/live-action-feed` and `feat/calendar-construct` were merged and removed). Frontend
+tsc + production build clean.
+
+### Live action feed (new)
+
+Watch a wake act in real time. Because wakes run in a different process than the API/WS server
+(`scheduler` vs `uvicorn`) and SQLite has no pub/sub, events are delivered **through the database**:
+
+- `littleman/db/models.py` — new `AgentEvent` table (`seq`-ordered cursor; WAL lets a reader see
+  another process's commits).
+- `littleman/agent/events.py` — best-effort `emit()` bound to the active wake via a ContextVar
+  (no-ops outside a wake / in chat / tests), plus `tail`/`recent` cursors and `prune` (keeps the
+  last ~50 sessions).
+- Emit points: `session.py` (`session_start`, coarse stage markers, `session_done` + prune,
+  ContextVar cleared in `finally`); `skills/registry.py` `dispatch` (`tool_call`/`tool_result` —
+  one chokepoint covers all tools/web search/file access); `agent/loop.py` (`reasoning`, the
+  model's between-steps text).
+- `api/routes/agent.py` — `GET /agent/activity` (backlog) + `WS /agent/activity/ws` (tails the
+  table, fresh session per poll, ~0.75s latency).
+- Frontend — `hooks/useActivity.ts` (WS + dedupe/reconnect), `components/activity/ActivityFeed.tsx`
+  (minimized action rows that change as they run, expand arrow reveals reasoning + input + result,
+  stage dividers, grouped per wake), rendered at the bottom of the **Main** session.
+- Tests: `tests/test_events.py` (emit/tail/prune/dispatch + a full `run_session` integration
+  asserting the event sequence and ContextVar cleanup).
+
+### CALENDAR.md + SELF.md maintenance
 
 **What this pass changed:**
 
@@ -34,10 +60,15 @@ Built, tested (78 green), committed on `feat/live-action-feed`.
 - `tests/test_hardening.py` — `_construct()` helper updated to include `calendar=""`.
 
 **Verified facts:**
-- `78 tests passing` (was 65 before the live-action-feed pass, now includes both passes).
-- `construct.is_initialised()` now requires CALENDAR.md to exist (alongside the original 4).
+- `84 tests passing` (65 baseline + the live-action-feed and CALENDAR/SELF passes).
+- `construct.is_initialised()` checks `FIRST_LIGHT_DOCS` (PRIORITIES/MACRO_PLAN/SELF/DIRECTIVE) and
+  intentionally **does not** require CALENDAR.md — so workspaces created before CALENDAR.md existed
+  are not falsely treated as uninitialised and re-sent through First Light. CALENDAR.md is still an
+  `OVERWRITE_DOCS` member (seeded, loaded, agent-writable); it just isn't part of the init gate.
 - SELF.md is updated at most once per wake, only when there is genuine signal; idle wakes
   leave it untouched.
+- The activity feed never fires the LLM: emission is best-effort DB writes, and the API/WS tail is
+  read-only — consistent with the "idle = zero token spend" invariant.
 
 ---
 
@@ -78,15 +109,18 @@ Built, tested (78 green), committed on `feat/live-action-feed`.
 
 ## Where development paused
 
-Paused after completing the CALENDAR.md + SELF.md maintenance additions (items 1 and 2 from the
-forward plan). The construct is now a genuinely living workspace: priorities, calendar, and
-self-model all update each wake; the self-scheduler reads CALENDAR.md for agent-discovered events.
+Paused after integrating the **live action feed** and the CALENDAR.md + SELF.md maintenance
+additions — all now on `main`. The construct is a genuinely living workspace (priorities, calendar,
+self-model update each wake; the self-scheduler reads CALENDAR.md), and a wake's actions stream to
+the operator in real time. The active direction is the **chat-experience track** (forward-plan
+items 5–6): the island aesthetic pass and the elicitation surface.
 
-Push still pending: local branch `feat/live-action-feed` is ahead of `origin/main`. Run:
+Push still pending: `main` is ahead of `origin/main`. When ready:
 ```
-git push -u origin feat/live-action-feed
-git checkout main && git merge feat/live-action-feed --ff-only && git push origin main
+git push origin main
 ```
+Not yet done: a **live run** of the stack (uvicorn + scheduler + a real/fake wake) to watch the
+action feed render in the browser — verified by tests + build only so far.
 
 ---
 
@@ -102,6 +136,20 @@ Near-term, in rough priority:
    lets the agent track multi-turn task state explicitly.
 4. **OpenClaw `SKILL.md` filesystem loader** — marketplace-compatible skills beyond the built-in
    Python registry; loads from `workspace/skills/*.md` + matching Python modules.
+
+**Chat-experience track** (operator-requested UX vision; piece #1 shipped above):
+
+5. **Island aesthetic pass** — extend the rounded/floating "island" feel (already on the chat bar
+   and skills popover) into a small shared design-system primitive: tokens in `theme.ts`/
+   `index.css` and a reusable island wrapper, applied to popups/tool surfaces incl. the new
+   `ActivityFeed`. Pure frontend.
+6. **Elicitation surface** — make LLM-asked questions a first-class conversational element and let
+   the prompt input expand vertically into that same header+options card, with auto-suggested
+   prompts (a toggleable suggestion bar above the input). Decisions still open: LLM-emitted vs.
+   deterministic suggestions; input-morph vs. separate bar. Frontend + a structured "ask" the
+   model can emit.
+   - Related larger item: give **user chat** a tool-executing ReAct loop so chats show the same
+     live action feed as wakes (today chat is a single non-tool turn). Has its own safety gates.
 
 Longer-term / deliberately deferred:
 
