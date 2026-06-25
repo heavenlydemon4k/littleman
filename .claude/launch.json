@@ -4,8 +4,8 @@
     {
       "name": "littleman",
       "runtimeExecutable": "./.venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "uvicorn", "littleman.api.app:app", "--port", "8012"],
-      "port": 8012
+      "runtimeArgs": ["-m", "uvicorn", "littleman.api.app:app", "--port", "8000"],
+      "port": 8000
     },
     {
       "name": "littleman-ui",
