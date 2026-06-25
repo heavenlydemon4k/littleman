@@ -60,6 +60,28 @@ async def test_scheduler_tick_skips_when_not_autonomous(temp_workspace):
     assert fired == 0
 
 
+def test_remove_override_clears_key(temp_workspace, monkeypatch):
+    from littleman.llm import runtime
+
+    # A UI-pasted key overlays the env default…
+    runtime.set_override({"api_key": "sk-temp-pasted-key", "primary_model": "openai/x"})
+    assert runtime.active()["api_key"] == "sk-temp-pasted-key"
+
+    # …and removing it reverts to the env default while leaving other overrides intact.
+    monkeypatch.setattr(settings, "llm_api_key", "env-default-key")
+    runtime.remove_override(["api_key"])
+    cfg = runtime.active()
+    assert cfg["api_key"] == "env-default-key"
+    assert cfg["primary_model"] == "openai/x"  # unrelated override preserved
+
+
+def test_remove_override_noop_when_absent(temp_workspace):
+    from littleman.llm import runtime
+
+    # Removing a key that was never overridden must not raise.
+    runtime.remove_override(["api_key"])
+
+
 def test_set_override_resets_provider_cache(temp_workspace):
     from littleman.llm import provider, runtime
 

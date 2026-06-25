@@ -68,6 +68,26 @@ def set_override(values: dict[str, Any]) -> dict[str, Any]:
     return active()
 
 
+def remove_override(keys: list[str]) -> dict[str, Any]:
+    """Delete specific fields from the live override file (revert them to the .env default).
+
+    Used to clear a UI-pasted secret (e.g. api_key) from workspace/state/runtime.json so it no
+    longer overlays the environment. No-ops for keys that aren't present.
+    """
+    current = _read_override()
+    changed = False
+    for k in keys:
+        if k in current:
+            del current[k]
+            changed = True
+    if changed:
+        _override_path().write_text(json.dumps(current, indent=2), encoding="utf-8")
+        from littleman.llm import provider
+
+        provider.reset_cache()
+    return active()
+
+
 def model_for(tier: str) -> str:
     cfg = active()
     return cfg["secondary_model"] if tier == "secondary" else cfg["primary_model"]

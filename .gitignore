@@ -21,3 +21,6 @@ node_modules/
 
 # Claude Code local settings
 .claude/
+
+# Local DB backups (never commit — may contain secrets/history)
+*.bak-*

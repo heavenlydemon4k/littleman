@@ -70,6 +70,15 @@ async def update_runtime(body: RuntimeUpdate):
     return await get_runtime()
 
 
+@router.delete("/runtime/api-key")
+async def delete_runtime_api_key():
+    """Clear a UI-pasted API key from the live override (revert to the .env default)."""
+    from littleman.llm import runtime
+
+    runtime.remove_override(["api_key"])
+    return await get_runtime()
+
+
 @router.get("/llm")
 async def list_llm_configs(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(LLMConfig).order_by(LLMConfig.created_at))

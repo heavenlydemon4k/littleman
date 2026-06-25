@@ -436,6 +436,12 @@ function RuntimeSection() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const removeKey = async () => {
+    const r = await fetch("/api/settings/runtime/api-key", { method: "DELETE" });
+    setCfg(await r.json());
+    setForm((f) => ({ ...f, api_key: "" }));
+  };
+
   if (!cfg) return null;
 
   return (
@@ -490,13 +496,30 @@ function RuntimeSection() {
           />
         </Field>
         <Field label={`API key ${cfg.api_key_set ? `(current: ${cfg.api_key_masked})` : "(not set)"}`}>
-          <input
-            type="password"
-            value={form.api_key ?? ""}
-            onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-            placeholder="Leave blank to keep existing"
-            className={inputCls}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="password"
+              value={form.api_key ?? ""}
+              onChange={(e) => setForm({ ...form, api_key: e.target.value })}
+              placeholder={cfg.api_key_set ? "Leave blank to keep existing" : "Paste key (sk-…)"}
+              className={inputCls}
+            />
+            {cfg.api_key_set && (
+              <button
+                onClick={removeKey}
+                title="Remove the stored key (reverts to the .env default)"
+                className="flex-shrink-0 rounded-lg border border-border p-2 text-muted hover:border-red-500/50 hover:text-red-400 transition-colors"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+          {cfg.api_key_set && (
+            <p className="mt-1 text-[11px] text-muted">
+              Stored in <span className="font-mono">workspace/state/runtime.json</span> (temporary,
+              overlays .env). Remove clears it from there.
+            </p>
+          )}
         </Field>
         <div className="flex items-center gap-2 pt-1">
           <button
