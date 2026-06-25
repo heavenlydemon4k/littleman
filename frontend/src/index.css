@@ -12,6 +12,12 @@
     --accent-500: #9a9a9a;
     --accent-600: #333333;
     --accent-700: #3f3f3f;
+
+    /* Island design tokens — the rounded/floating surface shared by popups, the chat bar,
+       and the activity feed. Centralized here so the whole "island" feel tunes in one place;
+       consumed via the <Island> primitive (Tailwind's rounded-island / shadow-island). */
+    --island-radius: 0.75rem;
+    --island-shadow: 0 12px 32px -14px rgba(0, 0, 0, 0.65);
   }
 
   * {

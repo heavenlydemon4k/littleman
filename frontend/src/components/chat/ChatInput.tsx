@@ -1,6 +1,7 @@
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Send, Square, Brain, Wrench, X } from "lucide-react";
 import clsx from "clsx";
+import { Island } from "../ui/Island";
 
 interface Skill {
   name: string;
@@ -57,7 +58,7 @@ export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Pro
     <div className={centered ? "px-4 pb-2" : "border-t border-border bg-surface-1 p-4"}>
       {/* Skills popover */}
       {showSkills && (
-        <div className="mx-auto mb-2 max-w-3xl rounded-xl border border-border bg-surface-2 p-3">
+        <Island floating className="mx-auto mb-2 max-w-3xl p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="font-mono text-xs text-white">Available skills</span>
             <button onClick={() => setShowSkills(false)} className="text-muted hover:text-white">
@@ -79,7 +80,7 @@ export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Pro
             ))}
             {skills.length === 0 && <p className="text-xs text-muted">Loading...</p>}
           </div>
-        </div>
+        </Island>
       )}
 
       <div className="mx-auto max-w-3xl">
@@ -99,7 +100,7 @@ export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Pro
           </button>
         </div>
 
-        <div className="flex items-end gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3 focus-within:border-blue-500 transition-colors">
+        <Island interactive className="flex items-end gap-3 px-4 py-3">
           <textarea
             ref={ref}
             value={value}
@@ -134,7 +135,7 @@ export function ChatInput({ onSend, onStop, streaming, disabled, centered }: Pro
               <Send size={18} />
             </button>
           )}
-        </div>
+        </Island>
         <p className="mt-1.5 text-center text-xs text-muted">
           littleman can make mistakes. Review its actions.
         </p>

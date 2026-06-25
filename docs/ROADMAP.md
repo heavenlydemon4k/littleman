@@ -139,10 +139,19 @@ Near-term, in rough priority:
 
 **Chat-experience track** (operator-requested UX vision; piece #1 shipped above):
 
-5. **Island aesthetic pass** — extend the rounded/floating "island" feel (already on the chat bar
-   and skills popover) into a small shared design-system primitive: tokens in `theme.ts`/
-   `index.css` and a reusable island wrapper, applied to popups/tool surfaces incl. the new
-   `ActivityFeed`. Pure frontend.
+5. **Island aesthetic pass** — ✅ DONE. Extracted the repeated `rounded-xl border border-border
+   bg-surface-*` look into a token-backed primitive:
+   - `--island-radius` / `--island-shadow` tokens in `index.css`, exposed as Tailwind
+     `rounded-island` / `shadow-island` (`tailwind.config.ts`).
+   - `components/ui/Island.tsx` — a typed `<Island>` wrapper with `surface` (1/2), `floating`
+     (drop shadow), and `interactive` (focus-within accent) variants.
+   - Applied to the floating/tool surfaces only (deliberately not a reskin): the chat input bar +
+     skills popover (`ChatInput.tsx`) and the activity feed groups + action rows
+     (`ActivityFeed.tsx`).
+   - Verified: tsc + production build clean; tokens resolve and utilities compile in a live preview
+     (`rounded-island`→12px, `shadow-island`→defined). Full ChatInput/ActivityFeed visual render
+     still wants the backend live-run reserved for operator go. Static page cards (settings/agent/
+     onboarding) intentionally left for a later, wider pass.
 6. **Elicitation surface** — make LLM-asked questions a first-class conversational element and let
    the prompt input expand vertically into that same header+options card, with auto-suggested
    prompts (a toggleable suggestion bar above the input). Decisions still open: LLM-emitted vs.

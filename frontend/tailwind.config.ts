@@ -33,6 +33,13 @@ export default {
       fontFamily: {
         mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
       },
+      // Island primitive tokens (defaults in index.css). Used by the <Island> wrapper.
+      borderRadius: {
+        island: "var(--island-radius)",
+      },
+      boxShadow: {
+        island: "var(--island-shadow)",
+      },
     },
   },
   plugins: [],

@@ -9,6 +9,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { AgentEvent } from "../../types";
+import { Island } from "../ui/Island";
 
 /** One executed (or in-flight) tool action, with the reasoning that led to it. */
 interface ActionRow {
@@ -134,7 +135,7 @@ function ActionItem({ row }: { row: ActionRow }) {
   const [open, setOpen] = useState(false);
   const expandable = !!(row.reasoning || row.args || row.summary || row.error);
   return (
-    <div className="rounded-lg border border-border bg-surface-1">
+    <Island surface={1}>
       <button
         onClick={() => expandable && setOpen((v) => !v)}
         className={clsx(
@@ -195,7 +196,7 @@ function ActionItem({ row }: { row: ActionRow }) {
           )}
         </div>
       )}
-    </div>
+    </Island>
   );
 }
 
@@ -207,7 +208,7 @@ export function ActivityFeed({ events }: { events: AgentEvent[] }) {
   return (
     <div className="mx-auto mb-4 max-w-3xl space-y-3 px-4">
       {groups.map((g) => (
-        <div key={g.sessionId} className="rounded-xl border border-border bg-surface-2 p-3 shadow-lg">
+        <Island key={g.sessionId} floating className="p-3">
           <div className="mb-2 flex items-center gap-2">
             {g.done ? (
               <Activity size={13} className="text-muted" />
@@ -247,7 +248,7 @@ export function ActivityFeed({ events }: { events: AgentEvent[] }) {
               {g.doneSummary}
             </p>
           )}
-        </div>
+        </Island>
       ))}
     </div>
   );
