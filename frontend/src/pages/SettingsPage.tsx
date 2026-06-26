@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Trash2, Cpu, Palette } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Trash2, Cpu, Palette, RefreshCw, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import clsx from "clsx";
 import { ACCENT_PRESETS, applyAccent, currentAccent } from "../theme";
 
@@ -83,13 +83,64 @@ interface RuntimeCfg {
   autonomous: boolean;
 }
 
+const CUSTOM = "__custom__";
+
+// A model picker: a dropdown of live/fetched models with a "Custom…" escape to type any id.
+function ModelSelect({
+  value, models, onChange,
+}: { value: string; models: string[]; onChange: (v: string) => void }) {
+  const known = models.includes(value);
+  const [custom, setCustom] = useState(!known && !!value);
+
+  // Keep the current value selectable even if the live list doesn't include it.
+  const options = Array.from(new Set([...(value ? [value] : []), ...models]));
+
+  if (custom) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="e.g. openai/moonshot-v1-128k"
+          className={inputCls}
+        />
+        <button
+          onClick={() => setCustom(false)}
+          className="flex-shrink-0 rounded-lg border border-border px-2 py-2 text-[11px] text-muted hover:text-white transition-colors"
+        >
+          list
+        </button>
+      </div>
+    );
+  }
+  return (
+    <select
+      value={known ? value : ""}
+      onChange={(e) => (e.target.value === CUSTOM ? setCustom(true) : onChange(e.target.value))}
+      className={inputCls}
+    >
+      {options.length === 0 && <option value="">(load models or choose Custom)</option>}
+      {options.map((m) => (
+        <option key={m} value={m}>{m}</option>
+      ))}
+      <option value={CUSTOM}>Custom…</option>
+    </select>
+  );
+}
+
 // The one place LLM config lives. The agent and the interactive chat both run on this; there is
-// no separate "chat model" any more (it was a redundant, drift-prone second source of truth).
+// no separate "chat model" any more. Model fields are live dropdowns fetched from the provider.
 function RuntimeSection() {
   const [cfg, setCfg] = useState<RuntimeCfg | null>(null);
   const [form, setForm] = useState<Partial<RuntimeCfg> & { api_key?: string }>({});
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsState, setModelsState] = useState<"idle" | "loading" | "live" | "fallback">("idle");
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [test, setTest] = useState<{ ok: boolean; detail: string } | null>(null);
+  const [testing, setTesting] = useState(false);
 
   const load = () =>
     fetch("/api/settings/runtime")
@@ -105,6 +156,30 @@ function RuntimeSection() {
       });
 
   useEffect(() => { load(); }, []);
+
+  // Fetch the provider's models for the dropdowns. Uses the unsaved key/base if present so you
+  // can populate before saving. Read-only — spends no tokens.
+  const loadModels = useCallback((base?: string, key?: string, hint?: string) => {
+    setModelsState("loading");
+    setModelsError(null);
+    fetch("/api/settings/models", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_base: base ?? null, api_key: key ?? null, model_hint: hint ?? null }),
+    })
+      .then((r) => r.json())
+      .then((d: { models: string[]; source: string; error: string | null }) => {
+        setModels(d.models || []);
+        setModelsState(d.source === "live" ? "live" : "fallback");
+        setModelsError(d.error);
+      })
+      .catch((e) => { setModelsState("fallback"); setModelsError(String(e)); });
+  }, []);
+
+  // Auto-load models once the config is known.
+  useEffect(() => {
+    if (cfg) loadModels(cfg.api_base, undefined, cfg.primary_model);
+  }, [cfg, loadModels]);
 
   const save = async () => {
     setSaving(true);
@@ -131,6 +206,27 @@ function RuntimeSection() {
     const r = await fetch("/api/settings/runtime/api-key", { method: "DELETE" });
     setCfg(await r.json());
     setForm((f) => ({ ...f, api_key: "" }));
+  };
+
+  const testConnection = async () => {
+    setTesting(true);
+    setTest(null);
+    try {
+      const r = await fetch("/api/settings/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_base: form.api_base ?? null,
+          api_key: form.api_key || null,
+          model_hint: form.primary_model ?? null,
+        }),
+      });
+      setTest(await r.json());
+    } catch (e) {
+      setTest({ ok: false, detail: String(e) });
+    } finally {
+      setTesting(false);
+    }
   };
 
   if (!cfg) return null;
@@ -165,25 +261,11 @@ function RuntimeSection() {
             <option value="fake">fake (deterministic, no API calls)</option>
           </select>
         </Field>
-        <Field label="Primary model (directive / strategy / probability / chat)">
-          <input
-            value={form.primary_model ?? ""}
-            onChange={(e) => setForm({ ...form, primary_model: e.target.value })}
-            placeholder="e.g. openai/moonshot-v1-128k"
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Secondary model (situation / lightweight)">
-          <input
-            value={form.secondary_model ?? ""}
-            onChange={(e) => setForm({ ...form, secondary_model: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
         <Field label="API base URL (OpenAI-compatible endpoint)">
           <input
             value={form.api_base ?? ""}
             onChange={(e) => setForm({ ...form, api_base: e.target.value })}
+            onBlur={(e) => loadModels(e.target.value, form.api_key, form.primary_model)}
             placeholder="e.g. https://api.moonshot.ai/v1"
             className={inputCls}
           />
@@ -207,14 +289,43 @@ function RuntimeSection() {
               </button>
             )}
           </div>
-          {cfg.api_key_set && (
-            <p className="mt-1 text-[11px] text-muted">
-              Stored in <span className="font-mono">workspace/state/runtime.json</span> (temporary,
-              overlays .env). Remove clears it from there.
-            </p>
-          )}
         </Field>
-        <div className="flex items-center gap-2 pt-1">
+
+        {/* Models — live dropdowns */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted">
+            Models{" "}
+            {modelsState === "live" && <span className="text-green-400">· live ({models.length})</span>}
+            {modelsState === "fallback" && <span className="text-amber-400">· fallback list</span>}
+          </span>
+          <button
+            onClick={() => loadModels(form.api_base, form.api_key, form.primary_model)}
+            disabled={modelsState === "loading"}
+            className="flex items-center gap-1 text-[11px] text-muted hover:text-white transition-colors disabled:opacity-50"
+          >
+            {modelsState === "loading" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            refresh
+          </button>
+        </div>
+        {modelsError && (
+          <p className="text-[11px] text-amber-400">⚠️ {modelsError} — showing fallback list.</p>
+        )}
+        <Field label="Primary model (directive / strategy / probability / chat)">
+          <ModelSelect
+            value={form.primary_model ?? ""}
+            models={models}
+            onChange={(v) => setForm({ ...form, primary_model: v })}
+          />
+        </Field>
+        <Field label="Secondary model (situation / lightweight)">
+          <ModelSelect
+            value={form.secondary_model ?? ""}
+            models={models}
+            onChange={(v) => setForm({ ...form, secondary_model: v })}
+          />
+        </Field>
+
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             onClick={save}
             disabled={saving}
@@ -222,8 +333,28 @@ function RuntimeSection() {
           >
             {saving ? "Saving…" : "Save"}
           </button>
+          <button
+            onClick={testConnection}
+            disabled={testing}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted hover:border-blue-500 hover:text-white transition-colors disabled:opacity-50"
+          >
+            {testing ? <Loader2 size={13} className="animate-spin" /> : <Cpu size={13} />}
+            Test connection
+          </button>
           {saved && <span className="text-xs text-green-400">saved</span>}
+          {test && (
+            <span className={clsx("flex items-center gap-1 text-xs", test.ok ? "text-green-400" : "text-red-400")}>
+              {test.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+              {test.detail}
+            </span>
+          )}
         </div>
+        {cfg.api_key_set && (
+          <p className="text-[11px] text-muted">
+            Key stored in <span className="font-mono">workspace/state/runtime.json</span> (temporary,
+            overlays .env). The trash button clears it.
+          </p>
+        )}
       </div>
     </div>
   );

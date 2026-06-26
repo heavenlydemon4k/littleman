@@ -13,6 +13,24 @@ class RuntimeUpdate(BaseModel):
     autonomous: bool | None = None
 
 
+class ProviderProbe(BaseModel):
+    """Optional overrides so the UI can list/test a key+base before saving them."""
+    api_base: str | None = None
+    api_key: str | None = None
+    model_hint: str | None = None
+
+
+def _probe_creds(body: ProviderProbe | None) -> tuple[str | None, str | None, str]:
+    """Resolve effective base/key/model: explicit overrides win, else the live runtime config."""
+    from littleman.llm import runtime
+
+    cfg = runtime.active()
+    api_base = body.api_base if body and body.api_base else cfg["api_base"]
+    api_key = body.api_key if body and body.api_key else cfg["api_key"]
+    model_hint = (body.model_hint if body and body.model_hint else cfg["primary_model"]) or ""
+    return api_base, api_key, model_hint
+
+
 @router.get("/runtime")
 async def get_runtime():
     """Effective agent runtime config (LLM + autonomy) — the single source of truth the agent
@@ -49,3 +67,26 @@ async def delete_runtime_api_key():
 
     runtime.remove_override(["api_key"])
     return await get_runtime()
+
+
+@router.post("/models")
+async def list_models(body: ProviderProbe | None = None):
+    """Available models for the configured (or supplied) provider — live, with curated fallback.
+
+    Read-only against the provider's models endpoint; spends no tokens. Accepts optional
+    base/key overrides so the UI can populate the dropdown before the key is saved."""
+    from littleman.llm import models_api
+
+    api_base, api_key, model_hint = _probe_creds(body)
+    return await models_api.list_models(api_base, api_key, model_hint)
+
+
+@router.post("/test-connection")
+async def test_connection(body: ProviderProbe | None = None):
+    """Verify the configured (or supplied) LLM provider is reachable and the key works.
+
+    This is the probe the onboarding eligibility gate uses. Returns {ok, detail}."""
+    from littleman.llm import models_api
+
+    api_base, api_key, model_hint = _probe_creds(body)
+    return await models_api.test_connection(api_base, api_key, model_hint)
