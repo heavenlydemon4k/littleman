@@ -30,8 +30,8 @@ WORKSPACE_CORE = """Your mental workspace — read it at the start of a wake, ma
 - PRIORITIES.md: your ranked stack of what matters now. You re-rank it every wake.
 - MACRO_PLAN.md: your strategy and campaigns. Revise only when the strategy actually shifts.
 - SELF.md: your capabilities, calibration, and learned patterns. Amend it when you learn something.
-- EXPOSURE.md: your current risk map (balances, open exposure, drawdown). Rendered for you each
-  wake — read it before sizing new risk; do not edit it (your edits are overwritten).
+- EXPOSURE.md: your current risk map or application-state snapshot. Rendered for you each
+  wake — read it before sizing new risk or commitments; do not edit it (your edits are overwritten).
 - CALENDAR.md: upcoming events you track for self-scheduling. Update it every wake.
 - HYPOTHESES.md: open predictions you are testing. Add, update, and resolve entries.
 - BLOCKERS.md: known failures and missing capabilities. Add obstacles; mark resolved when fixed.
@@ -70,8 +70,8 @@ Output ONLY the markdown body (no code fences, no preamble). Preserve the two-se
   - <ISO 8601 datetime UTC> | <SESSION_TYPE> | <reason>
 SESSION_TYPE is one of: RESOLVE | RESEARCH | MONITOR | FULL_CYCLE
 Example:
-  - 2026-07-01T14:00:00Z | RESOLVE | BTC position resolves; check outcome
-  - 2026-07-02T09:00:00Z | RESEARCH | FOMC meeting — re-assess rate-cut markets)
+  - 2026-07-01T14:00:00Z | RESOLVE | confirm project milestone delivered
+  - 2026-07-02T09:00:00Z | RESEARCH | follow up on open research thread)
 
 Maintenance rules:
 - Drop lines whose datetime is now in the past.

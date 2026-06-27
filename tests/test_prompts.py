@@ -17,3 +17,14 @@ def test_self_maintenance_is_domain_agnostic():
 def test_hypotheses_example_is_domain_agnostic():
     assert "BTC" not in prompts.HYPOTHESES_MAINTAIN_SYSTEM
     assert "Coinbase" not in prompts.HYPOTHESES_MAINTAIN_SYSTEM
+
+
+def test_calendar_examples_are_domain_agnostic():
+    assert "BTC" not in prompts.CALENDAR_MAINTAIN_SYSTEM
+    assert "FOMC" not in prompts.CALENDAR_MAINTAIN_SYSTEM
+    assert "position resolves" not in prompts.CALENDAR_MAINTAIN_SYSTEM.lower()
+
+
+def test_workspace_core_exposure_is_domain_agnostic():
+    assert "balances" not in prompts.WORKSPACE_CORE.lower() or "application-state snapshot" in prompts.WORKSPACE_CORE.lower()
+    assert "open exposure" not in prompts.WORKSPACE_CORE.lower() or "application-state snapshot" in prompts.WORKSPACE_CORE.lower()

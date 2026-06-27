@@ -69,7 +69,7 @@ async def _maintain_calendar(c: construct.Construct, directive: dict, summary: s
         f"Current CALENDAR.md:\n{c.calendar or '(empty)'}\n\n"
         f"This wake's directive: {json.dumps(directive)}\n"
         f"What happened: {summary}\n"
-        f"Open positions and watched markets from world model:\n{json.dumps(world_state)}\n\n"
+        f"Relevant time-bound context from world model:\n{json.dumps(world_state)}\n\n"
         "Update CALENDAR.md: add any newly discovered events, remove past ones, keep current ones accurate."
     )
     body = _strip_fences(await complete_text(CALENDAR_MAINTAIN_SYSTEM, user, tier="secondary"))
@@ -80,11 +80,11 @@ async def _maintain_calendar(c: construct.Construct, directive: dict, summary: s
 
 
 async def _maintain_self(c: construct.Construct, directive: dict, summary: str, exec_result: dict) -> bool:
-    """Conditionally update SELF.md when the wake produced a calibration signal or lesson."""
+    """Conditionally update SELF.md when the wake produced a lesson or notable signal."""
     failures = exec_result.get("failures", [])
-    bets = exec_result.get("bets_placed", 0)
+    skills_used = exec_result.get("skills_used", [])
     # Only invoke the LLM if there is something plausibly worth learning.
-    if not failures and bets == 0:
+    if not failures and not skills_used:
         return False
 
     failures_text = "\n".join(f"- {f['task']}: {f['error']}" for f in failures) if failures else "none"
@@ -93,7 +93,7 @@ async def _maintain_self(c: construct.Construct, directive: dict, summary: str, 
         f"Current SELF.md:\n{c.self_model or '(empty)'}\n\n"
         f"This wake's directive: {json.dumps(directive)}\n"
         f"What happened: {summary}\n"
-        f"Bets placed: {bets}\n"
+        f"Skills used: {', '.join(skills_used) or 'none'}\n"
         f"Failures:\n{failures_text}\n\n"
         "Decide: did this wake produce something worth recording in SELF.md? "
         "If yes, output the full updated SELF.md. If no, output exactly: NO_UPDATE"
@@ -285,20 +285,25 @@ async def maintain_construct(
     except Exception:  # noqa: BLE001
         results["calibration"] = False
 
-    try:
-        results["hypotheses"] = await _maintain_hypotheses(c, directive, session_summary, exec_result)
-    except Exception:  # noqa: BLE001
-        results["hypotheses"] = False
+    # Hypotheses, blockers, and skill notes are only worth an LLM call when there is
+    # relevant signal to process.
+    if exec_result.get("pending_resolutions") or exec_result.get("hypotheses"):
+        try:
+            results["hypotheses"] = await _maintain_hypotheses(c, directive, session_summary, exec_result)
+        except Exception:  # noqa: BLE001
+            results["hypotheses"] = False
 
-    try:
-        results["blockers"] = await _maintain_blockers(c, directive, session_summary, exec_result)
-    except Exception:  # noqa: BLE001
-        results["blockers"] = False
+    if exec_result.get("failures"):
+        try:
+            results["blockers"] = await _maintain_blockers(c, directive, session_summary, exec_result)
+        except Exception:  # noqa: BLE001
+            results["blockers"] = False
 
-    try:
-        results["skill_notes"] = await _maintain_skill_notes(c, directive, session_summary, exec_result)
-    except Exception:  # noqa: BLE001
-        results["skill_notes"] = False
+    if exec_result.get("skills_used"):
+        try:
+            results["skill_notes"] = await _maintain_skill_notes(c, directive, session_summary, exec_result)
+        except Exception:  # noqa: BLE001
+            results["skill_notes"] = False
 
     maintained = any(results.values())
     return {"maintained": maintained, "docs": results}
