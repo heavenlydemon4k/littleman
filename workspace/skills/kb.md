@@ -1,4 +1,10 @@
-# kb — Knowledge Base (Read & Write)
+---
+skills:
+  - write_to_kb
+  - read_from_kb
+  - search_kb
+---
+# Knowledge Base (Read & Write)
 
 ## Purpose
 The KB stores durable research findings across sessions. Write to it when you

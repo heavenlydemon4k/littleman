@@ -1,3 +1,9 @@
+---
+skills:
+  - web_search
+  - browse_url
+  - browse_urls
+---
 # web_research — Web Search and Page Fetching
 
 ## Purpose

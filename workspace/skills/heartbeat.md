@@ -1,4 +1,11 @@
-# heartbeat — Self-Scheduling Future Sessions
+---
+skills:
+  - create_heartbeat
+  - amend_heartbeat
+  - cancel_heartbeat
+  - list_scheduled_heartbeats
+---
+# heartbeat — Self-Scheduling
 
 ## Purpose
 Schedule future autonomous sessions by creating heartbeat records. This is how
