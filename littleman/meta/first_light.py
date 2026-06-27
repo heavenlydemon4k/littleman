@@ -25,7 +25,6 @@ from littleman.llm.client import load_agent_manual, load_soul
 from littleman.llm.complete import complete_text
 from littleman.llm.prompts import FIRST_LIGHT_DOC_SYSTEM, agent_description, render
 from littleman.meta import construct
-from littleman.meta.world_model import WorldModelManager
 
 # Documents First Light must produce.
 _FL_DOCS = ("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md")
@@ -153,9 +152,6 @@ async def run(db: AsyncSession, force: bool = False) -> dict:
 
     inventory = _inventory()
     soul = load_soul()
-
-    wm = WorldModelManager(db)
-    state = await wm.load()
 
     app = get_active_application()
     if app is not None:

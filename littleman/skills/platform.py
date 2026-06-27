@@ -25,9 +25,10 @@ def make_platform_skills(
 
     async def set_reminder(title: str, fire_at: str, reason: str | None = None) -> dict[str, Any]:
         """Schedule a future heartbeat reminder."""
+        if db_session_factory is None:
+            raise RuntimeError("set_reminder requires a db_session_factory")
         fire_dt = _parse_iso_datetime(fire_at)
-        factory = db_session_factory or (lambda: None)
-        async with factory() as db:
+        async with db_session_factory() as db:
             hb = await store.create_heartbeat(
                 db,
                 fire_at=fire_dt,

@@ -38,6 +38,16 @@ def test_platform_application_loads_by_default():
     assert app.is_configured() is True
 
 
+def test_platform_dashboard_status():
+    app = get_active_application()
+    status = app.dashboard_status()
+    assert status["name"] == "platform"
+    assert status["ok"] is True
+    assert "detail" in status
+    assert "autonomous" in status
+    assert isinstance(status["autonomous"], bool)
+
+
 @pytest.mark.asyncio
 async def test_platform_application_first_light_context_is_generic():
     app = get_active_application()

@@ -35,10 +35,13 @@ class PlatformApplication(Application):
         return {"status": "NOOP", "reason": "Platform default has no EXECUTE semantics"}
 
     def dashboard_status(self) -> dict[str, Any]:
+        from littleman.llm import runtime
+
         return {
             "name": "platform",
             "ok": True,
             "detail": f"Running littleman.platform (provider: {settings.llm_primary_model})",
+            "autonomous": runtime.is_autonomous(),
         }
 
     def root_goal(self) -> dict[str, str]:

@@ -43,3 +43,24 @@ async def test_take_note_and_read_notes(db):
     await registry.dispatch("take_note", {"topic": "ideas", "content": "build platform default"})
     result = await registry.dispatch("read_notes", {"topic": "ideas"})
     assert "build platform default" in str(result)
+
+
+@pytest.mark.asyncio
+async def test_read_notes_empty_no_args(db):
+    from littleman.skills.registry import build_registry
+
+    registry = build_registry(lambda: db)
+    result = await registry.dispatch("read_notes", {})
+    assert result == {"entries": []}
+
+
+@pytest.mark.asyncio
+async def test_read_notes_query_search(db):
+    from littleman.skills.registry import build_registry
+
+    registry = build_registry(lambda: db)
+    await registry.dispatch("take_note", {"topic": "ideas", "content": "platform default concept"})
+    await registry.dispatch("take_note", {"topic": "tasks", "content": "something unrelated"})
+    result = await registry.dispatch("read_notes", {"query": "platform default"})
+    assert result["count"] == 1
+    assert "platform default concept" in result["results"][0]["content"]

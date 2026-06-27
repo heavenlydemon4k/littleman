@@ -451,6 +451,14 @@ export function AgentPage() {
                     Provider: <span className="text-white">{runtime.primary_model}</span>
                   </p>
                 )}
+                {runtime && (
+                  <p className="text-xs text-muted">
+                    Autonomous:{" "}
+                    <span className={runtime.autonomous ? "text-green-400" : "text-muted"}>
+                      {runtime.autonomous ? "on" : "off"}
+                    </span>
+                  </p>
+                )}
               </Island>
             )}
 
