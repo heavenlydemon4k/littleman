@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from littleman.applications import get_active_application
 from littleman.config import settings
 from littleman.heartbeat import store
 from littleman.llm import runtime
@@ -155,12 +156,12 @@ async def run(db: AsyncSession, force: bool = False) -> dict:
 
     wm = WorldModelManager(db)
     state = await wm.load()
-    external_state = {
-        "wallet_balance_usdc": state.wallet_balance_usdc,
-        "available_balance_usdc": state.available_balance_usdc,
-        "open_positions": len(state.open_positions),
-        "budget_usdc": settings.budget_usdc,
-    }
+
+    app = get_active_application()
+    if app is not None:
+        external_state = await app.first_light_context()
+    else:
+        external_state = {}
 
     greeting = ""
     mode = runtime.active().get("mode", "real")
@@ -182,7 +183,11 @@ async def run(db: AsyncSession, force: bool = False) -> dict:
     bootstrap_directive = {
         "session_type": "FULL_CYCLE",
         "primary_focus": "Establish bearings and act on the mission",
-        "financial_context": f"Budget {settings.budget_usdc:.2f} USDC.",
+        "financial_context": (
+            f"Budget {settings.budget_usdc:.2f} USDC."
+            if settings.active_application == "Polymarket trading"
+            else "No application-specific financial context."
+        ),
         "opportunity_notes": [],
         "constraint_notes": ["Operate within configured hard limits"],
     }
