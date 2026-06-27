@@ -75,3 +75,7 @@ def get_active_application() -> Application | None:
     from littleman.config import settings
 
     return load_application(settings.active_application)
+
+
+# Import built-in applications so they register themselves.
+import littleman.applications.platform  # noqa: F401, E402

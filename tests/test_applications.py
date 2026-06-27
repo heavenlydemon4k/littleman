@@ -31,7 +31,17 @@ async def test_application_first_light_context_defaults_to_empty():
     assert await app.first_light_context() == {}
 
 
-def test_load_application_returns_platform_by_default():
+def test_platform_application_loads_by_default():
     app = get_active_application()
     assert app is not None
     assert app.name == "littleman.platform"
+    assert app.is_configured() is True
+
+
+@pytest.mark.asyncio
+async def test_platform_application_first_light_context_is_generic():
+    app = get_active_application()
+    ctx = await app.first_light_context()
+    assert "wallet_balance_usdc" not in ctx
+    assert "open_positions" not in ctx
+    assert "active_application" in ctx
