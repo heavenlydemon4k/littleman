@@ -52,11 +52,11 @@ that must be auditable.
 | `MACRO_PLAN.md` | strategic agenda, campaigns, horizons | **built** |
 | `SELF.md` | self-model: capabilities, limits, calibration | **built** |
 | `REFLECTION.md` | post-outcome analysis, calibration drift (append-only) | **built** |
-| `HYPOTHESES.md` | open predictions/questions being tested | planned |
-| `BLOCKERS.md` | known failures, skill bugs, API issues | planned |
+| `HYPOTHESES.md` | open predictions/questions being tested | **built** |
+| `BLOCKERS.md` | known failures, skill bugs, API issues | **built** |
 | `CALENDAR.md` | upcoming events, deadlines, resolution times | **built** |
 | `EXPOSURE.md` | risk map: positions, correlations, locked capital | **built** |
-| `SKILL_NOTES.md` | dynamic per-skill assessment | planned |
+| `SKILL_NOTES.md` | dynamic per-skill assessment | **built** |
 
 ### Turn-cycle documents (regenerated each turn)
 
@@ -70,6 +70,11 @@ that must be auditable.
 
 `SOUL.md` (prime directive, identity, domain knowledge) and `SKILLS.md` (capability reference).
 
+**Default application.** The platform ships with a built-in default application, `littleman.platform`,
+which provides generic autonomous-assistant skills. Polymarket trading remains an **opt-in**
+domain application selected via `settings.active_application`; no trading-specific concepts are
+loaded unless that application is active.
+
 ### Lifecycle rules
 
 - **Read at turn start:** PRIORITIES, SELF, MACRO_PLAN, DIRECTIVE.
@@ -78,9 +83,11 @@ that must be auditable.
 - **Context budget:** each doc is capped on injection; REFLECTION is truncated to its tail so
   it cannot overflow the window (**built** — `meta/construct.py`).
 
-The construct is currently **file-backed** (markdown is the source of truth, editable in the
-UI). A DB-backed source-of-truth with rendered files is a future option; it is intentionally
-deferred (boring-tools principle).
+The construct defaults to **file-backed** mode (markdown is the source of truth, editable in the
+UI). It also supports an optional **DB-backed** mode: `ConstructDoc` rows in SQLite are the source
+of truth and the files become rendered mirrors. Toggle it with `db_backed_construct = true` in
+`littleman.toml`. File workspaces are imported automatically on first startup after the flag is
+enabled, so existing workspaces remain intact.
 
 ---
 
@@ -196,7 +203,8 @@ construct.
 
 ## 9. Open questions
 
-- DB-backed construct + generational history (deferred; files suffice for one operator).
+- ✅ DB-backed construct (built; generational history still deferred).
 - Live order signing for Polymarket (planned — see the application doc).
-- Calibration loop writing measured accuracy back into SELF (planned).
+- ✅ Calibration loop writing measured accuracy back into SELF (`CalibrationEntry`, Brier scores,
+  confidence-bucket accuracy, `Calibration` section in SELF.md maintained each wake).
 - Multi-instance coordination (out of scope until a real need exists).

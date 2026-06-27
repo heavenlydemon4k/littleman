@@ -78,9 +78,11 @@ Watch a wake act in real time. Because wakes run in a different process than the
 - Wake/sleep model with self-authored **heartbeats**; dumb scheduler (poll + fire), gated by an
   **autonomous** toggle (off by default), with stale-session recovery + exponential-backoff retry.
 - **Mental construct** (PRIORITIES / MACRO_PLAN / SELF / EXPOSURE / CALENDAR / DIRECTIVE /
-  REFLECTION) that is read at the start of every wake and **maintained at the end** — a living
-  memory, not a snapshot: priorities re-ranked, exposure re-rendered from the world model,
-  calendar refreshed, and self-model conditionally updated.
+  REFLECTION / HYPOTHESES / BLOCKERS / SKILL_NOTES) that is read at the start of every wake and
+  **maintained at the end** — a living memory, not a snapshot: priorities re-ranked, exposure
+  re-rendered from the world model, calendar refreshed, and self-model conditionally updated.
+- **Construct storage modes**: file-backed by default; optional DB-backed (`ConstructDoc` rows are
+  the source of truth, markdown files are rendered mirrors).
 - **Turn cycle**: reconcile → situate → directive → strategy/tasks → ReAct skill execution →
   reflect → maintain (PRIORITIES + CALENDAR + SELF) → self-schedule.
 - **Skill registry** (22 skills) with requirement gating + on-demand `read_skill_doc`; the agent
@@ -101,27 +103,37 @@ Watch a wake act in real time. Because wakes run in a different process than the
 - Live action feed (`feat/live-action-feed` branch): DB-based pub/sub between scheduler and API;
   `ActivityFeed.tsx` + `useActivity.ts` consuming `/api/agent/activity/ws`.
 
+**Platform default application**
+- Built-in default application `littleman.platform` with generic skills (`set_reminder`, `take_note`,
+  `read_notes`) available in chat and wakes.
+- Application protocol with `first_light_context()` hook so each application injects its own
+  external-state snapshot into First Light (generic context for platform, financial snapshot for
+  Polymarket).
+- Lazy Polymarket loading: the Polymarket application and its skills are loaded only when
+  `settings.active_application = "Polymarket trading"`; the default stack is trading-free.
+- Tests: `tests/test_applications.py`, `tests/test_platform_skills.py`, `tests/test_registry.py`,
+  `tests/test_first_light.py`.
+
 **Polymarket reference application**
 - Live market reads (scan/market/orderbook/resolution) and read-only wallet reconcile.
 
-**Tests:** 125 passing.
+**Tests:** 156 passing.
 
 ---
 
 ## Where development paused
 
-Paused after integrating the **live action feed** and the CALENDAR.md + SELF.md maintenance
-additions — all now on `main`. The construct is a genuinely living workspace (priorities, calendar,
-self-model update each wake; the self-scheduler reads CALENDAR.md), and a wake's actions stream to
-the operator in real time. The active direction is the **chat-experience track** (forward-plan
-items 5–6): the island aesthetic pass and the elicitation surface.
+Paused after integrating the **platform default application** (`littleman.platform`) with its
+generic skills, `first_light_context()` application hook, and lazy Polymarket loading — all now on
+`main`. The stack is now application-agnostic by default; trading-specific code is loaded only when
+the operator explicitly selects Polymarket trading.
 
 Push still pending: `main` is ahead of `origin/main`. When ready:
 ```
 git push origin main
 ```
 Not yet done: a **live run** of the stack (uvicorn + scheduler + a real/fake wake) to watch the
-action feed render in the browser — verified by tests + build only so far.
+dashboard and action feed render in the browser — verified by tests + build only so far.
 
 ---
 
@@ -149,6 +161,7 @@ Near-term, in rough priority:
    lets the agent track multi-turn task state explicitly.
 4. **OpenClaw `SKILL.md` filesystem loader** — marketplace-compatible skills beyond the built-in
    Python registry; loads from `workspace/skills/*.md` + matching Python modules.
+5. ✅ **Calibration loop** — see "Longer-term" note (promoted to built because it shipped).
 
 **Chat-experience track** (operator-requested UX vision; piece #1 shipped above):
 
@@ -188,9 +201,19 @@ Longer-term / deliberately deferred:
 
 - **Live Polymarket order signing** — needs a funded signing wallet + `py-clob-client-v2`;
   gated behind the risk governor and autonomous toggle.
-- Remaining expanded docs (HYPOTHESES / BLOCKERS / SKILL_NOTES) when the agent's behaviour
-  shows it needs them.
-- Calibration loop writing measured accuracy back into SELF over many resolved outcomes.
+- ✅ **Expanded construct docs** — `HYPOTHESES.md`, `BLOCKERS.md`, and `SKILL_NOTES.md` are now
+  first-class construct documents: templates, `Construct` fields, prompt order, `OVERWRITE_DOCS`
+  membership, and LLM maintenance prompts in `maintain_construct()`. Tests:
+  `tests/test_construct_docs.py` (8).
+- ✅ **Calibration loop** — `CalibrationEntry` table records resolved predictions; Brier scores,
+  confidence-bucket accuracy, and per-category summaries are rendered deterministically into the
+  `Calibration` section of `SELF.md` each wake. Skills `record_prediction_outcome` and
+  `get_calibration_summary` are available to chat and wakes. Tests: `tests/test_calibration.py`
+  (6).
+- ✅ **DB-backed construct** — optional `ConstructDoc` source-of-truth with file mirrors.
+  `db_backed_construct = true` switches reads/writes to SQLite while keeping markdown files as
+  rendered, human-inspectable copies. Existing file workspaces are imported on first startup.
+  Tests: `tests/test_db_construct.py` (7).
 
 ---
 
@@ -198,5 +221,3 @@ Longer-term / deliberately deferred:
 
 - Generational/parallel-context state (ADR 0001) — serial execution protects a single wallet.
 - Multi-instance coordination — single-operator until a real need exists.
-- A second application — the application contract is extracted only when a second concrete one
-  is built (ADR 0002).
