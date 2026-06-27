@@ -1,6 +1,15 @@
 from pathlib import Path
 
 
+def test_probability_doc_is_domain_agnostic():
+    from littleman.config import settings
+
+    text = (settings.workspace_dir / "skills" / "probability.md").read_text(encoding="utf-8")
+    assert "Polymarket" not in text
+    assert "bet" not in text.lower()
+    assert "market price" not in text.lower() or "external reference price" in text.lower()
+
+
 async def test_read_skill_doc_resolves_by_registered_name(tmp_path, monkeypatch):
     from littleman.config import Settings
     from littleman.skills.skill_docs import read_skill_doc
