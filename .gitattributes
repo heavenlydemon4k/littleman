@@ -1,0 +1,38 @@
+# Normalize all text files to LF line endings on checkout.
+* text=auto eol=lf
+
+# Common text file types (explicit for tools that don't honor text=auto).
+*.md       text eol=lf
+*.py       text eol=lf
+*.ts       text eol=lf
+*.tsx      text eol=lf
+*.js       text eol=lf
+*.jsx      text eol=lf
+*.json     text eol=lf
+*.toml     text eol=lf
+*.yaml     text eol=lf
+*.yml      text eol=lf
+*.sql      text eol=lf
+*.cfg      text eol=lf
+*.ini      text eol=lf
+*.sh       text eol=lf
+*.bat      text eol=crlf
+*.ps1      text eol=crlf
+
+# Binary files should never be touched.
+*.db       binary
+*.db-shm   binary
+*.db-wal   binary
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.woff     binary
+*.woff2    binary
+*.ttf      binary
+*.eot      binary
+*.otf      binary
+*.pdf      binary
+*.zip      binary
+*.tar.gz   binary
