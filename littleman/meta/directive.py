@@ -74,6 +74,10 @@ async def generate(situation_report: dict[str, Any]) -> dict[str, Any]:
     if construct_block:
         user = f"Mental construct (your current cognitive state):\n{construct_block}\n\n{user}"
 
+    workspace_block = construct.workspace_prompt_block()
+    if workspace_block:
+        user = f"Other workspace files:\n{workspace_block}\n\n{user}"
+
     directive = await complete_json(
         render(DIRECTIVE_SYSTEM, agent_description=agent_description()),
         user,

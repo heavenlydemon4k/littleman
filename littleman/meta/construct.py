@@ -196,3 +196,68 @@ def seed_from_templates() -> None:
             continue
         template = read_template(name)
         live.write_text(template, encoding="utf-8")
+
+
+def discover_workspace_files() -> list[tuple[str, str]]:
+    """Return (relative_path, content) for markdown/text files in the workspace root.
+
+    Excludes the formal mental construct (handled separately) and gitignored/state paths so the
+    prompt block stays focused on agent- or operator-authored documents.
+    """
+    root = settings.workspace_dir.resolve()
+    if not root.exists():
+        return []
+
+    excluded = {
+        _construct_dir().resolve(),
+        (root / "skills").resolve(),
+        (root / "state").resolve(),
+    }
+    files: list[tuple[str, str]] = []
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        if p.suffix.lower() not in {".md", ".txt"}:
+            continue
+        try:
+            p.relative_to(_construct_dir().resolve())
+            continue
+        except ValueError:
+            pass
+        if any(p == e or p.is_relative_to(e) for e in excluded):
+            continue
+        try:
+            rel = p.relative_to(root).as_posix()
+            files.append((rel, p.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            continue
+    return files
+
+
+def workspace_prompt_block(max_chars: int | None = None) -> str:
+    """Render discovered workspace files as a prompt block, capped by char budget."""
+    from littleman.config import settings
+
+    max_chars = max_chars or settings.bootstrap_max_chars
+    files = discover_workspace_files()
+    if not files:
+        return ""
+
+    parts: list[str] = []
+    used = 0
+    for rel_path, content in files:
+        body = content.strip()
+        if not body:
+            continue
+        body = _truncate(body, max_chars, tail=False)
+        block = f"===== workspace/{rel_path} =====\n{body}"
+        if used + len(block) > max_chars:
+            if not parts:
+                # Ensure at least a truncated slice of the first file is shown.
+                remaining = max(0, max_chars - used)
+                block = _truncate(block, remaining, tail=False)
+                parts.append(block)
+            break
+        parts.append(block)
+        used += len(block)
+    return "\n\n".join(parts)

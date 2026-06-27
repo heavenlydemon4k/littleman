@@ -133,6 +133,7 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     from littleman.skills.probability import make_probability_skill
     from littleman.skills.skill_docs import read_skill_doc
     from littleman.skills.construct_skills import make_construct_skills
+    from littleman.skills.workspace_files import make_workspace_file_skills
 
     global _registry
     registry = SkillRegistry()
@@ -175,6 +176,9 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
         application.register_skills(registry, db_session_factory)
 
     for skill in make_construct_skills():
+        registry.register(**skill)
+
+    for skill in make_workspace_file_skills():
         registry.register(**skill)
 
     if db_session_factory:
