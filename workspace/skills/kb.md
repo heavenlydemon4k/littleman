@@ -12,9 +12,9 @@ learn something that will still be useful next session. Read from it before
 doing web research to avoid redundant work.
 
 ## Skills
-- `kb_write(topic, content, source_urls, confidence, expires_at, linked_market_ids)`
-- `kb_read(topic)` — fuzzy-matched retrieval by topic string
-- `kb_search(query)` — full-text search across all KB entries
+- `write_to_kb(topic, content, source_urls=None, confidence="MEDIUM", expires_hours=None)`
+- `read_from_kb(topic)` — fuzzy-matched retrieval by topic string
+- `search_kb(query, limit=10)` — full-text search across all KB entries
 
 ## When to WRITE
 - You've researched a topic with ≥ MEDIUM confidence and it will age well (>6h)
@@ -34,19 +34,18 @@ Use lowercase, underscore-separated, specific:
 
 NOT: `research`, `notes`, `markets`, `info` (too generic — hard to retrieve)
 
-## Key parameters for kb_write
+## Key parameters for write_to_kb
 - `topic` (str): follows naming convention above
 - `content` (str): your synthesized finding, 50–500 words
-- `source_urls` (list[str]): URLs you researched from
-- `confidence` (str): "HIGH" | "MEDIUM" | "LOW"
-- `expires_at` (ISO str, optional): omit for durable facts; set for fast-moving data
+- `source_urls` (list[str], optional): URLs you researched from
+- `confidence` (str, default "MEDIUM"): "HIGH" | "MEDIUM" | "LOW"
+- `expires_hours` (int, optional): omit for durable facts; set for fast-moving data
   - Breaking news → expires in 4–8h
   - Weekly data (polls, prices) → expires in 24–48h
   - Structural/institutional facts → no expiry
-- `linked_market_ids` (list[str]): market IDs this research applies to
 
 ## Common mistakes
 - Writing to KB without source_urls (makes it unverifiable later)
-- Topic too generic → kb_read won't find it next session
+- Topic too generic → read_from_kb won't find it next session
 - Not expiring fast-moving data → stale KB entries cause anchoring
-- Skipping kb_read before web_research → wastes tokens re-discovering known facts
+- Skipping read_from_kb before web_research → wastes tokens re-discovering known facts

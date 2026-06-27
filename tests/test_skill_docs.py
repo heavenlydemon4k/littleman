@@ -1,3 +1,6 @@
+from pathlib import Path
+
+
 async def test_read_skill_doc_resolves_by_registered_name(tmp_path, monkeypatch):
     from littleman.config import Settings
     from littleman.skills.skill_docs import read_skill_doc
@@ -18,3 +21,13 @@ async def test_read_skill_doc_resolves_by_registered_name(tmp_path, monkeypatch)
 
     result = await read_skill_doc("read_from_kb")
     assert "KB docs" in result
+
+
+def test_skill_docs_do_not_reference_old_names():
+    skills_dir = Path(__file__).parent.parent / "workspace" / "skills"
+    obsolete_names = {"kb_write", "kb_read", "kb_search", "schedule_heartbeat"}
+
+    for path in sorted(skills_dir.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        found = [name for name in obsolete_names if name in text]
+        assert not found, f"{path.name} still references obsolete names: {found}"
