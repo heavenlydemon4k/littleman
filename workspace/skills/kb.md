@@ -39,7 +39,7 @@ NOT: `research`, `notes`, `markets`, `info` (too generic — hard to retrieve)
 - `content` (str): your synthesized finding, 50–500 words
 - `source_urls` (list[str], optional): URLs you researched from
 - `confidence` (str, default "MEDIUM"): "HIGH" | "MEDIUM" | "LOW"
-- `expires_hours` (int, optional): omit for durable facts; set for fast-moving data
+- `expires_hours` (number, optional): omit for durable facts; set for fast-moving data
   - Breaking news → expires in 4–8h
   - Weekly data (polls, prices) → expires in 24–48h
   - Structural/institutional facts → no expiry

@@ -12,7 +12,7 @@ Schedule future autonomous sessions by creating heartbeat records. This is how
 the agent plans its own wake-up schedule without human intervention.
 
 ## Skills
-- `create_heartbeat(fire_at, reason, session_type, context)` — create a new heartbeat
+- `create_heartbeat(fire_at, reason, session_type, context=None, spawned_by=None)` — create a new heartbeat
 - `amend_heartbeat(heartbeat_id, fire_at, reason)` — reschedule an existing heartbeat
 - `cancel_heartbeat(heartbeat_id)` — cancel a scheduled heartbeat
 
