@@ -104,7 +104,7 @@ Watch a wake act in real time. Because wakes run in a different process than the
 **Polymarket reference application**
 - Live market reads (scan/market/orderbook/resolution) and read-only wallet reconcile.
 
-**Tests:** 94 passing.
+**Tests:** 102 passing.
 
 ---
 

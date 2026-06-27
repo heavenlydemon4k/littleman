@@ -54,8 +54,8 @@ that must be auditable.
 | `REFLECTION.md` | post-outcome analysis, calibration drift (append-only) | **built** |
 | `HYPOTHESES.md` | open predictions/questions being tested | planned |
 | `BLOCKERS.md` | known failures, skill bugs, API issues | planned |
-| `CALENDAR.md` | upcoming events, deadlines, resolution times | planned |
-| `EXPOSURE.md` | risk map: positions, correlations, locked capital | planned |
+| `CALENDAR.md` | upcoming events, deadlines, resolution times | **built** |
+| `EXPOSURE.md` | risk map: positions, correlations, locked capital | **built** |
 | `SKILL_NOTES.md` | dynamic per-skill assessment | planned |
 
 ### Turn-cycle documents (regenerated each turn)

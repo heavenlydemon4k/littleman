@@ -120,5 +120,5 @@ Runs end-to-end against a live LLM (verified on Kimi/Moonshot). What works today
 - A **React UI**: onboarding, chat (with the agent's Main session), agent dashboard, workspace
   editor, settings (LLM runtime + monochrome/customizable theme).
 
-**65 tests passing.** Current state, where development paused, and the forward plan:
+**102 tests passing.** Current state, where development paused, and the forward plan:
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
