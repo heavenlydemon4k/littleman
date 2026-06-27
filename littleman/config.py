@@ -24,7 +24,8 @@ class Settings(BaseSettings):
     workspace_dir: Path = Path("./workspace")
 
     # The active application running on the platform (a SOUL.md + skill pack defines it).
-    active_application: str = "Polymarket trading"
+    # Set to "Polymarket trading" to enable the built-in prediction-market application.
+    active_application: str = "littleman.platform"
 
     # Polymarket
     polymarket_api_key: str = ""

@@ -93,7 +93,7 @@ class Position(Base):
     pnl = Column(Numeric(18, 6), nullable=True)
     placed_at = Column(DateTime(timezone=True), server_default=func.now())
     resolved_at = Column(DateTime(timezone=True), nullable=True)
-    polymarket_order_id = Column(String, nullable=True)
+    external_order_id = Column(String, nullable=True)
 
 
 class Strategy(Base):

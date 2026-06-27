@@ -23,7 +23,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from littleman.config import settings
 from littleman.heartbeat import store
 from littleman.llm.complete import complete_json
-from littleman.llm.prompts import HEARTBEAT_PLAN_SYSTEM, HEARTBEAT_PLAN_USER, render
+from littleman.llm.prompts import (
+    HEARTBEAT_PLAN_SYSTEM,
+    HEARTBEAT_PLAN_USER,
+    agent_description,
+    render,
+)
 from littleman.meta import construct
 from littleman.meta.world_model import WorldModelState
 
@@ -190,6 +195,7 @@ async def plan_and_schedule(
                 HEARTBEAT_PLAN_SYSTEM,
                 idle_hours=settings.idle_heartbeat_interval_hours,
                 now=now.isoformat(),
+                agent_description=agent_description(),
             )
             user = render(
                 HEARTBEAT_PLAN_USER,

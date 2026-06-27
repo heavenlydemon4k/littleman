@@ -15,11 +15,22 @@ async def get_or_create_root(db: AsyncSession) -> Strategy:
     if root:
         return root
 
+    from littleman.applications import get_active_application
+
+    app = get_active_application()
+    if app is not None:
+        goal = app.root_goal()
+        title = goal.get("title", "Achieve the agent's mission")
+        rationale = goal.get("rationale", "Core objective defined by the active application")
+    else:
+        title = "Achieve the agent's mission"
+        rationale = "Core objective defined by SOUL.md and operator guidance"
+
     root = Strategy(
         id=str(uuid.uuid4()),
         node_type="GOAL",
-        title="Maximize risk-adjusted return on Polymarket budget",
-        rationale="Core objective: compound USDC balance through prediction market edge",
+        title=title,
+        rationale=rationale,
         status="ACTIVE",
         metadata_={},
     )

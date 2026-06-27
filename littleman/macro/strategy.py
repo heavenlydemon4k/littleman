@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from littleman.llm.complete import complete_json
-from littleman.llm.prompts import STRATEGY_SYSTEM, render
+from littleman.llm.prompts import STRATEGY_SYSTEM, agent_description, render
 from littleman.macro import goal_tree
 from littleman.skills.registry import get_registry
 
@@ -27,6 +27,7 @@ async def plan(db: AsyncSession, directive: dict[str, Any]) -> dict[str, Any]:
         skills_summary=registry.summary_text(),
         directive_json=json.dumps(directive, indent=2),
         goal_tree_json=json.dumps(tree, indent=2),
+        agent_description=agent_description(),
     )
     result = await complete_json(system, "Produce the plan now.", tier="primary")
 

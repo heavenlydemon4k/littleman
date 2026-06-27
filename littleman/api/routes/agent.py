@@ -39,27 +39,27 @@ async def status(db: AsyncSession = Depends(get_db)):
     last = last_session.scalar_one_or_none()
 
     rt = runtime.active()
-    wallet_connected = bool(cfg.polymarket_wallet_address)
-    reconciled = wm.wallet_reconciled
     connections = {
         "llm": {
             "ok": rt["mode"] == "fake" or bool(rt.get("api_key")),
             "detail": "fake mode (no API)" if rt["mode"] == "fake"
             else (f"{rt['primary_model']}" if rt.get("api_key") else "no API key set"),
         },
-        "polymarket_wallet": {
-            "ok": wallet_connected,
-            "detail": (
-                f"{cfg.polymarket_wallet_address}"
-                + (" (reconciled)" if reconciled else " — configured; click Reconcile to read live balance")
-            ) if wallet_connected
-            else "not configured — balance is the simulated budget, no live wallet",
-        },
         "search": {
             "ok": True,
             "detail": "Tavily" if cfg.search_api_key else "DuckDuckGo (keyless)",
         },
     }
+
+    from littleman.applications import get_active_application
+
+    app = get_active_application()
+    if app is not None:
+        app_status = app.dashboard_status()
+        connections[app_status.get("name", "application")] = {
+            "ok": app_status.get("ok", False),
+            "detail": app_status.get("detail", ""),
+        }
 
     return {
         "initialised": construct.is_initialised(),
@@ -452,11 +452,19 @@ async def first_light_run(db: AsyncSession = Depends(get_db)):
 
 @router.post("/reconcile")
 async def reconcile(db: AsyncSession = Depends(get_db)):
-    """Read the configured wallet's real USDC balance + positions from Polygon/Polymarket and
-    reconcile them into the world model. Read-only — cannot move funds."""
-    from littleman.skills.polymarket_client import reconcile as do_reconcile
+    """Ask the active application to reconcile external state into the world model.
 
-    return await do_reconcile(db)
+    For the Polymarket application this reads the configured wallet's balance + positions.
+    Read-only — cannot move funds.
+    """
+    from littleman.applications import get_active_application
+
+    app = get_active_application()
+    if app is None:
+        return {"reconciled": False, "reason": "no active application"}
+    if not app.is_configured():
+        return {"reconciled": False, "reason": "active application not configured"}
+    return await app.reconcile(db)
 
 
 @router.post("/run-due")

@@ -133,14 +133,13 @@ async def _run_pipeline(
 ) -> dict:
     wm = WorldModelManager(db)
 
-    # Reconcile real wallet balance/positions from chain before reasoning (best-effort).
-    from littleman.config import settings as _cfg
+    # Let the active application reconcile external state before reasoning (best-effort).
+    from littleman.applications import get_active_application
 
-    if _cfg.polymarket_wallet_address:
+    app = get_active_application()
+    if app is not None and app.is_configured():
         try:
-            from littleman.skills.polymarket_client import reconcile as _reconcile
-
-            await _reconcile(db)
+            await app.reconcile(db)
         except Exception:  # noqa: BLE001 — reconcile is best-effort; never block a session
             pass
 

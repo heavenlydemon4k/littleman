@@ -935,7 +935,7 @@ positions
   pnl                   NUMERIC(18,6) (nullable)
   placed_at             DATETIME
   resolved_at           DATETIME (nullable)
-  polymarket_order_id   TEXT (nullable)
+  external_order_id     TEXT (nullable)  -- application-specific order reference
 
 strategies                         — goal tree nodes
   id          TEXT (UUID, PK)

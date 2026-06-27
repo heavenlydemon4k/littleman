@@ -22,7 +22,7 @@ from littleman.heartbeat import store
 from littleman.llm import runtime
 from littleman.llm.client import load_agent_manual, load_soul
 from littleman.llm.complete import complete_text
-from littleman.llm.prompts import FIRST_LIGHT_DOC_SYSTEM, render
+from littleman.llm.prompts import FIRST_LIGHT_DOC_SYSTEM, agent_description, render
 from littleman.meta import construct
 from littleman.meta.world_model import WorldModelManager
 
@@ -92,6 +92,7 @@ async def _author_doc_scripted(doc: str, soul: str, inventory: str, external_sta
         soul_excerpt=soul[: settings.bootstrap_max_chars],
         inventory=inventory,
         external_state=json.dumps(external_state),
+        agent_description=agent_description(),
     )
     body = await complete_text(system, f"Write the {doc} body now.", tier="primary")
     construct.write_doc(doc, _strip_fences(body))

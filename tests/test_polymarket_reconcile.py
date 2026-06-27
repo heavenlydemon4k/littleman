@@ -7,7 +7,7 @@ math and world-model write are what we verify.
 import pytest
 
 from littleman.config import settings
-from littleman.skills import polymarket_client as pc
+from littleman.applications.polymarket import client as pc
 
 
 def test_position_value_prefers_explicit_field():

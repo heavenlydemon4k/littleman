@@ -12,6 +12,20 @@ def render(_template: str, **values: object) -> str:
     return out
 
 
+def agent_description() -> str:
+    """Return a short, generic description of the agent for system prompts.
+
+    The description intentionally does not hard-code any application domain. If a more specific
+    identity is needed, callers can override the placeholder when rendering.
+    """
+    from littleman.config import settings
+
+    app = settings.active_application
+    if app and app != "littleman.platform":
+        return f"an autonomous agent running the {app} application"
+    return "an autonomous agent on the littleman platform"
+
+
 WORKSPACE_CORE = """Your mental workspace — read it at the start of a wake, maintain it at the end:
 - PRIORITIES.md: your ranked stack of what matters now. You re-rank it every wake.
 - MACRO_PLAN.md: your strategy and campaigns. Revise only when the strategy actually shifts.
@@ -109,9 +123,9 @@ budgets, or facts the operator did not state. If a section has no input, write a
 honest default consistent with the mission rather than padding."""
 
 
-FIRST_LIGHT_DOC_SYSTEM = """You are performing First Light for Littleman, an autonomous
-Polymarket trading agent. You are writing the body of {doc_name} — one of your own cognitive
-workspace documents — by interpreting your prime directive.
+FIRST_LIGHT_DOC_SYSTEM = """You are performing First Light for Littleman, {agent_description}.
+You are writing the body of {doc_name} — one of your own cognitive workspace documents — by
+interpreting your prime directive.
 
 Output ONLY the markdown body for {doc_name}. No code fences, no preamble, no JSON.
 
@@ -156,7 +170,7 @@ World model data:
 {world_model_json}
 """
 
-DIRECTIVE_SYSTEM = """You are the directive engine for Littleman, an autonomous Polymarket trading agent.
+DIRECTIVE_SYSTEM = """You are the directive engine for Littleman, {agent_description}.
 
 Your job is to read a situation report and produce a directive — a structured statement of
 what this agent session should focus on and why. The directive is not a task list. It is an
@@ -189,7 +203,7 @@ Soul excerpt (operating principles):
 
 Produce the directive."""
 
-STRATEGY_SYSTEM = """You are the strategy planner for Littleman, an autonomous Polymarket trading agent.
+STRATEGY_SYSTEM = """You are the strategy planner for Littleman, {agent_description}.
 
 You receive a directive and the current goal tree. You produce a concrete plan: task
 specifications and goal tree mutations.
@@ -241,7 +255,7 @@ Directive:
 Current goal tree:
 {goal_tree_json}"""
 
-PROBABILITY_SYSTEM = """You are performing a structured probability estimation for a Polymarket prediction market.
+PROBABILITY_SYSTEM = """You are performing a structured probability estimation for a prediction market or decision.
 
 Produce a calibrated probability estimate based on evidence. Do not anchor to the market
 price — form your own estimate first, then note the market price for comparison.
@@ -276,7 +290,7 @@ Base rates:
 
 Produce the probability estimate."""
 
-HEARTBEAT_PLAN_SYSTEM = """You are the self-scheduler for Littleman, an autonomous Polymarket trading agent.
+HEARTBEAT_PLAN_SYSTEM = """You are the self-scheduler for Littleman, {agent_description}.
 
 At session end you decide what future sessions are needed. Output valid JSON (no markdown fences):
 {

@@ -15,7 +15,13 @@ from typing import Any
 
 from littleman.llm.complete import complete_json
 from littleman.llm.client import load_soul
-from littleman.llm.prompts import DIRECTIVE_SYSTEM, DIRECTIVE_USER, WORKSPACE_CORE, render
+from littleman.llm.prompts import (
+    DIRECTIVE_SYSTEM,
+    DIRECTIVE_USER,
+    WORKSPACE_CORE,
+    agent_description,
+    render,
+)
 from littleman.meta import construct
 
 
@@ -68,7 +74,11 @@ async def generate(situation_report: dict[str, Any]) -> dict[str, Any]:
     if construct_block:
         user = f"Mental construct (your current cognitive state):\n{construct_block}\n\n{user}"
 
-    directive = await complete_json(DIRECTIVE_SYSTEM, user, tier="primary")
+    directive = await complete_json(
+        render(DIRECTIVE_SYSTEM, agent_description=agent_description()),
+        user,
+        tier="primary",
+    )
 
     # Persist the directive into the construct for inspectability.
     construct.write_doc("DIRECTIVE.md", _render_directive_md(directive))
