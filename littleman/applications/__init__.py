@@ -49,6 +49,14 @@ class Application(Protocol):
         """Return the default root goal for the goal tree."""
         ...
 
+    async def first_light_context(self) -> dict[str, Any]:
+        """Return application-specific context injected into First Light.
+
+        The platform default returns generic context; domain applications (e.g. Polymarket)
+        return their own external-state snapshot.
+        """
+        return {}
+
 
 BUILTIN_APPLICATIONS: dict[str, Callable[[], Application]] = {}
 
