@@ -454,7 +454,6 @@ async def first_light_run(db: AsyncSession = Depends(get_db)):
 async def reconcile(db: AsyncSession = Depends(get_db)):
     """Ask the active application to reconcile external state into the world model.
 
-    For the Polymarket application this reads the configured wallet's balance + positions.
     Read-only — cannot move funds.
     """
     from littleman.applications import get_active_application

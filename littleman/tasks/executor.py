@@ -1,7 +1,7 @@
 """Task executor — runs a task tree in dependency order.
 
 Most task types dispatch a registered skill named in their params. EXECUTE tasks are handled
-by the active application (e.g. placing a bet for the Polymarket application), which is
+by the active application (e.g. placing a bet for a trading application), which is
 responsible for any domain-specific gating and state recording.
 
 Per ADR 0001, execution is serial: one task at a time evaluates against a single consistent
