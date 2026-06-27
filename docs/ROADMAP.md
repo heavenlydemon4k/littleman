@@ -104,7 +104,7 @@ Watch a wake act in real time. Because wakes run in a different process than the
 **Polymarket reference application**
 - Live market reads (scan/market/orderbook/resolution) and read-only wallet reconcile.
 
-**Tests:** 121 passing.
+**Tests:** 125 passing.
 
 ---
 
@@ -180,9 +180,9 @@ Near-term, in rough priority:
      prefill the input (editable), not auto-send.
    - Tests: `tests/test_chat_suggestions.py` (3 — returns three, empty-session safe, degrades to
      `[]` on bad model output). Suite now **87 green**; frontend tsc + build clean.
-   - **Deferred (next):** give **user chat** a tool-executing ReAct loop so chats stream the same
-     live action feed as wakes (today chat is a single non-tool turn). Has its own safety gates.
-     Full live render of morph + suggestions still wants the operator-go backend run.
+   - **DONE.** User chat now has a tool-executing ReAct loop that persists tool results and
+     streams them to the frontend. Chat tools are filtered to `chat_safe=True` skills as a
+     safety gate. Full live render still wants the operator-go backend run.
 
 Longer-term / deliberately deferred:
 

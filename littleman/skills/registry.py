@@ -13,6 +13,7 @@ class Skill:
     cost: str = "LOW"
     requires: list[str] = field(default_factory=list)
     available: bool = True
+    chat_safe: bool = True
 
 
 def _requirements_met(requires: list[str]) -> bool:
@@ -42,6 +43,7 @@ class SkillRegistry:
         parameters: dict[str, Any],
         cost: str = "LOW",
         requires: list[str] | None = None,
+        chat_safe: bool = True,
     ) -> None:
         requires = requires or []
         self._skills[name] = Skill(
@@ -52,6 +54,7 @@ class SkillRegistry:
             cost=cost,
             requires=requires,
             available=_requirements_met(requires),
+            chat_safe=chat_safe,
         )
 
     async def dispatch(self, name: str, args: dict[str, Any]) -> Any:
@@ -92,6 +95,21 @@ class SkillRegistry:
             }
             for s in self._skills.values()
             if s.available or not only_available
+        ]
+
+    def get_chat_definitions(self, only_available: bool = True) -> list[dict]:
+        """Tool definitions limited to skills that are safe for interactive chat use."""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": s.name,
+                    "description": s.description,
+                    "parameters": s.parameters,
+                },
+            }
+            for s in self._skills.values()
+            if (s.available or not only_available) and s.chat_safe
         ]
 
     def names(self, only_available: bool = True) -> list[str]:

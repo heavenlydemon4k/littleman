@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 import litellm
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -167,30 +167,24 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
 
             await ws.send_json({"type": "user_message", "message": _serialise_message(user_msg)})
 
-            history = await _load_history(session_id, db)
-            model = _resolve_model()
-            soul = load_soul()
-            tools = _chat_tools() if skills_on else []
-
             assistant_id = str(uuid.uuid4())
             await ws.send_json({"type": "assistant_start", "id": assistant_id})
 
-            accumulated_content = ""
-            accumulated_thinking = ""
-            pending_tool_calls: list[dict] = []
+            # Bind this chat turn to the live activity feed so tool calls stream like wakes.
+            from littleman.agent import events
 
+            events.set_session(session_id)
             try:
-                async for event in _stream_llm(model, soul, history, tools, thinking_on):
-                    await ws.send_json(event)
-
-                    if event["type"] == "token":
-                        accumulated_content += event["content"]
-                    elif event["type"] == "thinking":
-                        accumulated_thinking += event["content"]
-                    elif event["type"] == "tool_call":
-                        pending_tool_calls.append(event["call"])
+                await _run_chat_react_loop(
+                    session_id=session_id,
+                    ws=ws,
+                    db=db,
+                    assistant_id=assistant_id,
+                    thinking_on=thinking_on,
+                    skills_on=skills_on,
+                )
             except Exception as e:
-                log.exception("chat stream failed for session %s", session_id)
+                log.exception("chat ReAct loop failed for session %s", session_id)
                 detail = f"{type(e).__name__}: {e}"
                 await ws.send_json({"type": "error", "message": detail})
                 db.add(ChatMessage(
@@ -199,26 +193,130 @@ async def chat_ws(session_id: str, ws: WebSocket, db: AsyncSession = Depends(get
                 ))
                 await db.commit()
                 await ws.send_json({"type": "assistant_done", "id": assistant_id})
-                continue
-
-            assistant_msg = ChatMessage(
-                id=assistant_id,
-                session_id=session_id,
-                role="assistant",
-                content=accumulated_content or None,
-                thinking=accumulated_thinking or None,
-                tool_calls=pending_tool_calls or None,
-            )
-            db.add(assistant_msg)
-            await db.commit()
-
-            await ws.send_json({"type": "assistant_done", "id": assistant_id})
+            finally:
+                events.set_session(None)
 
     except WebSocketDisconnect:
         pass
 
 
 # Helpers
+
+_MAX_CHAT_ITERATIONS = 4
+
+
+async def _run_chat_react_loop(
+    session_id: str,
+    ws: WebSocket,
+    db: AsyncSession,
+    assistant_id: str,
+    thinking_on: bool,
+    skills_on: bool,
+) -> None:
+    """Run a tool-executing ReAct loop for one user turn in chat.
+
+    Streams tokens/thinking/tool_calls/tool_results in real time, persists messages, and stops
+    when the model produces no more tool calls or the iteration limit is reached.
+    """
+    from littleman.db.connection import AsyncSessionLocal
+    from littleman.skills.registry import build_registry
+
+    build_registry(db_session_factory=AsyncSessionLocal)
+
+    model = _resolve_model()
+    soul = load_soul()
+    tools = _chat_tools() if skills_on else []
+
+    final_content = ""
+    final_thinking = ""
+    final_tool_calls: list[dict] = []
+
+    for _iteration in range(_MAX_CHAT_ITERATIONS):
+        history = await _load_history(session_id, db)
+        accumulated_content = ""
+        accumulated_thinking = ""
+        pending_tool_calls: list[dict] = []
+
+        async for event in _stream_llm(model, soul, history, tools, thinking_on):
+            await ws.send_json(event)
+
+            if event["type"] == "token":
+                accumulated_content += event["content"]
+            elif event["type"] == "thinking":
+                accumulated_thinking += event["content"]
+            elif event["type"] == "tool_call":
+                pending_tool_calls.append(event["call"])
+
+        if not pending_tool_calls:
+            final_content = accumulated_content
+            final_thinking = accumulated_thinking
+            break
+
+        # Save the assistant's reasoning/tool-choice turn before executing.
+        turn_id = str(uuid.uuid4())
+        db.add(
+            ChatMessage(
+                id=turn_id,
+                session_id=session_id,
+                role="assistant",
+                content=accumulated_content or None,
+                thinking=accumulated_thinking or None,
+                tool_calls=pending_tool_calls or None,
+            )
+        )
+        await db.commit()
+        final_tool_calls.extend(pending_tool_calls)
+
+        # Execute each tool call and stream the result back.
+        for tc in pending_tool_calls:
+            result = await _execute_chat_tool(tc)
+            await ws.send_json(
+                {
+                    "type": "tool_result",
+                    "call_id": tc.get("id"),
+                    "name": tc.get("name"),
+                    "result": result,
+                }
+            )
+            db.add(
+                ChatMessage(
+                    id=str(uuid.uuid4()),
+                    session_id=session_id,
+                    role="tool",
+                    content=json.dumps(result, default=str),
+                    tool_call_id=tc.get("id"),
+                    tool_name=tc.get("name"),
+                )
+            )
+            await db.commit()
+
+    # Persist the final assistant message (the answer after any tool use).
+    db.add(
+        ChatMessage(
+            id=assistant_id,
+            session_id=session_id,
+            role="assistant",
+            content=final_content or None,
+            thinking=final_thinking or None,
+            tool_calls=final_tool_calls or None,
+        )
+    )
+    await db.commit()
+
+    await ws.send_json({"type": "assistant_done", "id": assistant_id})
+
+
+async def _execute_chat_tool(tc: dict) -> Any:
+    """Execute a single tool call from chat via the skill registry."""
+    from littleman.skills.registry import get_registry
+
+    name = tc.get("name", "")
+    args = tc.get("args", {})
+    try:
+        return await get_registry().dispatch(name, args)
+    except Exception as e:  # noqa: BLE001 — surface tool errors back to the model
+        return {"error": str(e)}
+
 
 def _strip_code_fence(text: str) -> str:
     t = text.strip()
@@ -292,12 +390,13 @@ def _resolve_model() -> str:
 
 
 def _chat_tools() -> list[dict]:
+    """Return tool definitions limited to skills safe for interactive chat."""
     from littleman.skills.registry import get_registry
 
     try:
-        return get_registry().get_definitions()
+        return get_registry().get_chat_definitions()
     except RuntimeError:
-        return build_tool_definitions()
+        return []
 
 
 async def _stream_llm(

@@ -9,6 +9,7 @@ export interface ToolCall {
   id: string;
   name: string;
   args: Record<string, unknown>;
+  result?: Record<string, unknown>;
 }
 
 // An LLM-emitted structured question (see CHAT_ELICITATION_GUIDE). Parsed from a fenced
@@ -67,6 +68,7 @@ export type WsEvent =
   | { type: "token"; content: string }
   | { type: "thinking"; content: string }
   | { type: "tool_call"; call: ToolCall }
+  | { type: "tool_result"; call_id: string; name: string; result: Record<string, unknown> }
   | { type: "assistant_done"; id: string }
   | { type: "error"; message: string }
   | { type: "done" };

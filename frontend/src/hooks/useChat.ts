@@ -99,6 +99,24 @@ export function useChat(sessionId: string | null) {
           }
           break;
 
+        case "tool_result":
+          if (streamBuffer.current) {
+            streamBuffer.current.tool_calls = streamBuffer.current.tool_calls.map((tc) =>
+              tc.id === event.call_id ? { ...tc, result: event.result } : tc
+            );
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === streamBuffer.current?.id
+                  ? {
+                      ...m,
+                      tool_calls: [...(streamBuffer.current?.tool_calls ?? [])],
+                    }
+                  : m
+              )
+            );
+          }
+          break;
+
         case "assistant_done":
           setStreaming(false);
           if (streamBuffer.current) {

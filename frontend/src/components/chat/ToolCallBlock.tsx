@@ -22,10 +22,21 @@ export function ToolCallBlock({ call }: Props) {
         </span>
       </button>
       {open && (
-        <div className="border-t border-surface-4 px-3 py-2">
-          <pre className="font-mono text-muted overflow-x-auto whitespace-pre-wrap break-all">
-            {JSON.stringify(call.args, null, 2)}
-          </pre>
+        <div className="border-t border-surface-4 px-3 py-2 space-y-2">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Arguments</div>
+            <pre className="font-mono text-muted overflow-x-auto whitespace-pre-wrap break-all">
+              {JSON.stringify(call.args, null, 2)}
+            </pre>
+          </div>
+          {call.result && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Result</div>
+              <pre className="font-mono text-muted overflow-x-auto whitespace-pre-wrap break-all">
+                {JSON.stringify(call.result, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>
