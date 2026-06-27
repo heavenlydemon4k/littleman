@@ -134,6 +134,7 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     from littleman.skills.skill_docs import read_skill_doc
     from littleman.skills.construct_skills import make_construct_skills
     from littleman.skills.workspace_files import make_workspace_file_skills
+    from littleman.skills.update_self import make_update_self_skill
 
     global _registry
     registry = SkillRegistry()
@@ -166,6 +167,8 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
         for skill in make_kb_skills(db_session_factory):
             registry.register(**skill)
         for skill in make_heartbeat_skills(db_session_factory):
+            registry.register(**skill)
+        for skill in make_update_self_skill(db_session_factory):
             registry.register(**skill)
 
     for skill in make_web_research_skills():
