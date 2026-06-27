@@ -1,9 +1,10 @@
 """OpenClaw / AgentSkills filesystem loader.
 
-Skills dropped into `workspace/skills/*.md` as `SKILL.md` manifests (YAML frontmatter with
-`name` + `description`) are registered alongside the built-in Python skills. If a matching
-Python implementation exists at `littleman.skills.openclaw.<name>`, it is wired up;
-otherwise the skill is registered as documentation-only and dispatches return a helpful error.
+Skills dropped into `workspace/openclaw/skills/*.md` as `SKILL.md` manifests (YAML frontmatter
+with `name` + `description`) are registered alongside the built-in Python skills. If a matching
+Python implementation exists at `littleman.skills.openclaw.<name>`, it is wired up; otherwise
+the manifest is ignored unless it explicitly sets `register: true` (in which case it dispatches
+a helpful unimplemented error).
 
 This lets littleman import skills from OpenClaw's marketplace format without changing the
 platform's core Python registry.
@@ -56,9 +57,12 @@ def _load_impl(name: str) -> Callable[..., Awaitable[Any]] | None:
     return getattr(module, name, None)
 
 
+_SKILL_DIR = "openclaw/skills"
+
+
 def load_openclaw_skills() -> list[dict[str, Any]]:
-    """Scan workspace/skills/*.md and return skill definitions."""
-    skills_dir = settings.workspace_dir / "skills"
+    """Scan workspace/openclaw/skills/*.md for executable skill manifests."""
+    skills_dir = settings.workspace_dir / _SKILL_DIR
     if not skills_dir.exists():
         return []
 
@@ -80,6 +84,9 @@ def load_openclaw_skills() -> list[dict[str, Any]]:
         }
 
         impl = _load_impl(name)
+        register = meta.get("register", impl is not None)
+        if not register:
+            continue
         if impl is None:
             impl = _make_unimplemented(name)
 
