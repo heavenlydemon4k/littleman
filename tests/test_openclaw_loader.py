@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from littleman.config import settings
-from littleman.skills.openclaw_loader import _parse_frontmatter, load_openclaw_skills
+from littleman.skills.frontmatter import _parse_frontmatter
+from littleman.skills.openclaw_loader import load_openclaw_skills
 
 
 @pytest.fixture

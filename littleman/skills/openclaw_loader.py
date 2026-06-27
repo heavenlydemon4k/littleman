@@ -13,38 +13,11 @@ platform's core Python registry.
 from __future__ import annotations
 
 import importlib
-import re
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from littleman.config import settings
-
-
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
-
-
-def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-    """Split YAML frontmatter from markdown body."""
-    match = _FRONTMATTER_RE.match(text)
-    if not match:
-        return {}, text
-
-    yaml_text, body = match.groups()
-    meta: dict[str, Any] = {}
-    key: str | None = None
-    for line in yaml_text.splitlines():
-        if ":" in line:
-            key, value = line.split(":", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            meta[key] = value
-        elif key is not None and line.strip().startswith("-"):
-            # Minimal list support for requires, etc.
-            item = line.strip()[1:].strip().strip('"').strip("'")
-            if key not in meta or not isinstance(meta[key], list):
-                meta[key] = []
-            meta[key].append(item)
-    return meta, body
+from littleman.skills.frontmatter import _parse_frontmatter
 
 
 def _load_impl(name: str) -> Callable[..., Awaitable[Any]] | None:

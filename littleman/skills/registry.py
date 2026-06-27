@@ -158,6 +158,12 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     global _registry
     registry = SkillRegistry()
 
+    # OpenClaw-style filesystem skills (optional, separate directory). Load these first so
+    # every built-in skill registered afterwards overwrites any OpenClaw manifest of the
+    # same name.
+    for skill in load_openclaw_skills():
+        registry.register(**skill)
+
     # On-demand skill documentation — always available; zero cost.
     registry.register(
         name="read_skill_doc",
@@ -196,11 +202,6 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     application = get_active_application()
     if application:
         application.register_skills(registry, db_session_factory)
-
-    # OpenClaw-style filesystem skills (optional, separate directory). Register these BEFORE
-    # built-in platform skills so a built-in implementation always wins.
-    for skill in load_openclaw_skills():
-        registry.register(**skill)
 
     # Platform / workspace skills.
     for skill in make_construct_skills():

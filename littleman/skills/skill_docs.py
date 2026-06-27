@@ -1,33 +1,10 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
 from littleman.config import settings
-
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
-
-
-def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-    match = _FRONTMATTER_RE.match(text)
-    if not match:
-        return {}, text
-    yaml_text, body = match.groups()
-    meta: dict[str, Any] = {}
-    key: str | None = None
-    for line in yaml_text.splitlines():
-        if ":" in line:
-            key, value = line.split(":", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            meta[key] = value
-        elif key is not None and line.strip().startswith("-"):
-            item = line.strip()[1:].strip().strip('"').strip("'")
-            if key not in meta or not isinstance(meta[key], list):
-                meta[key] = []
-            meta[key].append(item)
-    return meta, body
+from littleman.skills.frontmatter import _parse_frontmatter
 
 
 class SkillDocIndex:
