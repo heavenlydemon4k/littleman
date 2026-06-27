@@ -64,7 +64,7 @@ that must be auditable.
 |---|---|---|
 | `DIRECTIVE.md` | current intent: what this turn is for and why | **built** |
 | `PLAN.md` | research → gather bearings → form approach | planned |
-| `TURNS.md` | execution queue: N planned turns + error handling | planned |
+| `TURNS.md` | execution queue: N planned turns + error handling | **built** |
 
 ### Static documents (human-provided)
 
