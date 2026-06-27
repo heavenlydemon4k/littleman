@@ -67,6 +67,9 @@ def register_builtin(name: str, factory: Callable[[], Application]) -> None:
 
 def load_application(name: str) -> Application | None:
     """Load a built-in application by name. Returns None if unknown."""
+    # Lazy-load domain applications so they register themselves only when selected.
+    if name == "Polymarket trading" and name not in BUILTIN_APPLICATIONS:
+        import littleman.applications.polymarket  # noqa: F401
     factory = BUILTIN_APPLICATIONS.get(name)
     return factory() if factory else None
 

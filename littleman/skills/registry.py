@@ -142,7 +142,7 @@ def get_registry() -> SkillRegistry:
 def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     """Construct the registry with all skills wired up to the given DB session factory."""
     # Import built-in applications so they register themselves.
-    import littleman.applications.polymarket  # noqa: F401
+    import littleman.applications.platform  # noqa: F401
 
     from littleman.applications import get_active_application
     from littleman.skills.kb import make_kb_skills

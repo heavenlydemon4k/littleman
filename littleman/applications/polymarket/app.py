@@ -10,7 +10,7 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from littleman.applications import Application, register_builtin
+from littleman.applications import Application
 from littleman.config import settings
 from littleman.db.models import Observation, Position
 from littleman.macro.risk import RiskGovernor, RiskState
@@ -156,5 +156,15 @@ class PolymarketApplication(Application):
             "rationale": "Core objective: compound USDC balance through prediction market edge",
         }
 
+    async def first_light_context(self) -> dict[str, Any]:
+        from littleman.db.connection import AsyncSessionLocal
+        from littleman.meta.world_model import WorldModelManager
 
-register_builtin("Polymarket trading", lambda: PolymarketApplication())
+        async with AsyncSessionLocal() as db:
+            state = await WorldModelManager(db).load()
+            return {
+                "wallet_balance_usdc": state.wallet_balance_usdc,
+                "available_balance_usdc": state.available_balance_usdc,
+                "open_positions": len(state.open_positions),
+                "budget_usdc": settings.budget_usdc,
+            }

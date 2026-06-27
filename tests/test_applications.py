@@ -45,3 +45,14 @@ async def test_platform_application_first_light_context_is_generic():
     assert "wallet_balance_usdc" not in ctx
     assert "open_positions" not in ctx
     assert "active_application" in ctx
+
+
+@pytest.mark.asyncio
+async def test_polymarket_first_light_context_has_finance(monkeypatch, db):
+    monkeypatch.setattr("littleman.config.settings.active_application", "Polymarket trading")
+    app = get_active_application()
+    assert app is not None
+    assert app.name == "Polymarket trading"
+    ctx = await app.first_light_context()
+    assert "wallet_balance_usdc" in ctx
+    assert "budget_usdc" in ctx
