@@ -157,6 +157,12 @@ class PolymarketApplication(Application):
         }
 
     async def first_light_context(self) -> dict[str, Any]:
+        """Return Polymarket-specific state for the First Light context.
+
+        Loads the current world-model state so First Light starts with the real
+        wallet balance, available budget, number of open positions, and the
+        configured trading budget.
+        """
         from littleman.db.connection import AsyncSessionLocal
         from littleman.meta.world_model import WorldModelManager
 
