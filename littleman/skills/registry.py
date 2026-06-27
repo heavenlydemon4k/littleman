@@ -197,13 +197,16 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     if application:
         application.register_skills(registry, db_session_factory)
 
+    # OpenClaw-style filesystem skills (optional, separate directory). Register these BEFORE
+    # built-in platform skills so a built-in implementation always wins.
+    for skill in load_openclaw_skills():
+        registry.register(**skill)
+
+    # Platform / workspace skills.
     for skill in make_construct_skills():
         registry.register(**skill)
 
     for skill in make_workspace_file_skills():
-        registry.register(**skill)
-
-    for skill in load_openclaw_skills():
         registry.register(**skill)
 
     if db_session_factory:
