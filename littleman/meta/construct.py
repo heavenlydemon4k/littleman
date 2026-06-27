@@ -23,7 +23,14 @@ from pathlib import Path
 from littleman.config import settings
 
 # Documents that are overwritten wholesale by the agent each time they change.
-OVERWRITE_DOCS = ("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md", "CALENDAR.md", "DIRECTIVE.md")
+OVERWRITE_DOCS = (
+    "PRIORITIES.md",
+    "MACRO_PLAN.md",
+    "SELF.md",
+    "CALENDAR.md",
+    "DIRECTIVE.md",
+    "TURNS.md",
+)
 # Documents that only ever grow.
 APPEND_DOCS = ("REFLECTION.md",)
 # Documents the agent does NOT author: rendered deterministically from system state each wake
@@ -32,10 +39,17 @@ APPEND_DOCS = ("REFLECTION.md",)
 RENDERED_DOCS = ("EXPOSURE.md",)
 
 # Prompt/seed order. EXPOSURE.md sits next to SELF.md so the agent reads its risk state right
-# before forming the directive.
+# before forming the directive. TURNS.md follows DIRECTIVE so the agent sees its execution
+# window after its current intent.
 ALL_DOCS = (
-    "PRIORITIES.md", "MACRO_PLAN.md", "SELF.md", "EXPOSURE.md",
-    "CALENDAR.md", "DIRECTIVE.md", "REFLECTION.md",
+    "PRIORITIES.md",
+    "MACRO_PLAN.md",
+    "SELF.md",
+    "EXPOSURE.md",
+    "CALENDAR.md",
+    "DIRECTIVE.md",
+    "TURNS.md",
+    "REFLECTION.md",
 )
 
 # The subset that must exist for is_initialised() to return True. CALENDAR.md and EXPOSURE.md
@@ -80,6 +94,7 @@ class Construct:
     exposure: str
     calendar: str
     directive: str
+    turns: str
     reflection: str
 
     def as_prompt_block(
@@ -107,6 +122,7 @@ class Construct:
             "EXPOSURE.md": self.exposure,
             "CALENDAR.md": self.calendar,
             "DIRECTIVE.md": self.directive,
+            "TURNS.md": self.turns,
             "REFLECTION.md": self.reflection,
         }
         parts: list[str] = []
@@ -153,6 +169,7 @@ def load() -> Construct:
         exposure=read("EXPOSURE.md"),
         calendar=read("CALENDAR.md"),
         directive=read("DIRECTIVE.md"),
+        turns=read("TURNS.md"),
         reflection=read("REFLECTION.md"),
     )
 

@@ -290,6 +290,36 @@ Base rates:
 
 Produce the probability estimate."""
 
+TURNS_MAINTAIN_SYSTEM = """You maintain TURNS.md — the agent's rolling N-turn execution window.
+
+Output ONLY the markdown body (no code fences, no preamble). Preserve the three-section structure:
+
+## Current Turn
+- turn_n: <integer>
+- goal: <one sentence>
+- planned_skills: <list>
+- exit_condition: <one sentence>
+
+## Upcoming Turns
+- turn_n: <integer>
+  goal: <one sentence>
+  depends_on: [<turn numbers>]
+  fallback: <one sentence>
+
+## Completed Turns
+- turn_n: <integer>
+  summary: <what happened>
+  result: COMPLETE | PARTIAL | FAILED
+
+Rules:
+- Move the just-finished Current Turn to Completed Turns with an honest result.
+- Promote the next Upcoming Turn to Current Turn.
+- Keep Upcoming Turns small (1–4 items) and concrete.
+- Drop completed dependencies that no longer matter; add new upcoming turns surfaced by the wake.
+- If nothing is upcoming, leave the section empty but keep the heading.
+- Never plan more than a handful of turns ahead."""
+
+
 HEARTBEAT_PLAN_SYSTEM = """You are the self-scheduler for Littleman, {agent_description}.
 
 At session end you decide what future sessions are needed. Output valid JSON (no markdown fences):

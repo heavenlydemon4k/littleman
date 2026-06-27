@@ -94,3 +94,21 @@ def test_calendar_excluded_from_selective_block(temp_workspace):
     block = construct.load().as_prompt_block(include=("PRIORITIES.md",))
     assert "CALENDAR_CONTENT" not in block
     assert "PRIO_CONTENT" in block
+
+
+def test_turns_is_overwrite_doc(temp_workspace):
+    assert "TURNS.md" in construct.OVERWRITE_DOCS
+
+
+def test_write_and_load_turns(temp_workspace):
+    construct.seed_from_templates()
+    construct.write_doc("TURNS.md", "## Current Turn\n- turn_n: 1\n")
+    loaded = construct.load()
+    assert "turn_n: 1" in loaded.turns
+
+
+def test_turns_in_prompt_block(temp_workspace):
+    construct.seed_from_templates()
+    construct.write_doc("TURNS.md", "TURNS_CONTENT")
+    block = construct.load().as_prompt_block(include=("TURNS.md",))
+    assert "TURNS_CONTENT" in block

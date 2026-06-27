@@ -42,6 +42,7 @@ def make_construct_skills() -> list[dict]:
                 "EXPOSURE.md": c.exposure,
                 "CALENDAR.md": c.calendar,
                 "DIRECTIVE.md": c.directive,
+                "TURNS.md": c.turns,
                 "REFLECTION.md": c.reflection,
             }
             body = mapping.get(doc, "")

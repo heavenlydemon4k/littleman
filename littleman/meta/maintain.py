@@ -23,6 +23,7 @@ from littleman.llm.prompts import (
     CALENDAR_MAINTAIN_SYSTEM,
     PRIORITIES_MAINTAIN_SYSTEM,
     SELF_MAINTAIN_SYSTEM,
+    TURNS_MAINTAIN_SYSTEM,
     WORKSPACE_CORE,
 )
 from littleman.meta import construct
@@ -101,6 +102,25 @@ async def _maintain_self(c: construct.Construct, directive: dict, summary: str, 
     return False
 
 
+async def _maintain_turns(c: construct.Construct, directive: dict, summary: str, exec_result: dict) -> bool:
+    """Update TURNS.md: roll the execution window forward after the wake."""
+    user = (
+        f"{WORKSPACE_CORE}\n\n"
+        f"Current TURNS.md:\n{c.turns or '(empty)' }\n\n"
+        f"This wake's directive: {json.dumps(directive)}\n"
+        f"What happened: {summary}\n"
+        f"Skills used: {', '.join(exec_result.get('skills_used', [])) or 'none'}\n"
+        f"Failures: {len(exec_result.get('failures', []))}\n\n"
+        "Update TURNS.md now: move the finished turn to Completed, promote the next Upcoming turn, "
+        "and keep the upcoming queue small and concrete."
+    )
+    body = _strip_fences(await complete_text(TURNS_MAINTAIN_SYSTEM, user, tier="secondary"))
+    if body.strip():
+        construct.write_doc("TURNS.md", body)
+        return True
+    return False
+
+
 def _render_exposure(world_state: dict) -> bool:
     """Render EXPOSURE.md deterministically from the world model. No LLM — runs every mode."""
     from littleman.meta.exposure import render_exposure
@@ -152,6 +172,11 @@ async def maintain_construct(
         results["self"] = await _maintain_self(c, directive, session_summary, exec_result)
     except Exception:  # noqa: BLE001
         results["self"] = False
+
+    try:
+        results["turns"] = await _maintain_turns(c, directive, session_summary, exec_result)
+    except Exception:  # noqa: BLE001
+        results["turns"] = False
 
     maintained = any(results.values())
     return {"maintained": maintained, "docs": results}
