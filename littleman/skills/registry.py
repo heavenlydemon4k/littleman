@@ -135,6 +135,7 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     from littleman.skills.construct_skills import make_construct_skills
     from littleman.skills.workspace_files import make_workspace_file_skills
     from littleman.skills.update_self import make_update_self_skill
+    from littleman.skills.openclaw_loader import load_openclaw_skills
 
     global _registry
     registry = SkillRegistry()
@@ -182,6 +183,9 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
         registry.register(**skill)
 
     for skill in make_workspace_file_skills():
+        registry.register(**skill)
+
+    for skill in load_openclaw_skills():
         registry.register(**skill)
 
     if db_session_factory:
