@@ -6,11 +6,13 @@ from littleman.db.models import Base
 
 
 @pytest_asyncio.fixture
-async def db():
+async def db(monkeypatch):
     """A fresh in-memory SQLite database per test.
 
     StaticPool keeps a single connection so the in-memory schema persists across the
-    session's statements.
+    session's statements. The module-level ``AsyncSessionLocal`` is patched so code that
+    creates sessions from ``littleman.db.connection`` (e.g. ``construct._get_db``) routes
+    to the same in-memory database.
     """
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -21,6 +23,8 @@ async def db():
         await conn.run_sync(Base.metadata.create_all)
 
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr("littleman.db.connection.AsyncSessionLocal", session_factory)
+
     async with session_factory() as session:
         yield session
 

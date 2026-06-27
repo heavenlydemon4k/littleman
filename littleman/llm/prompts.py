@@ -33,6 +33,9 @@ WORKSPACE_CORE = """Your mental workspace — read it at the start of a wake, ma
 - EXPOSURE.md: your current risk map (balances, open exposure, drawdown). Rendered for you each
   wake — read it before sizing new risk; do not edit it (your edits are overwritten).
 - CALENDAR.md: upcoming events you track for self-scheduling. Update it every wake.
+- HYPOTHESES.md: open predictions you are testing. Add, update, and resolve entries.
+- BLOCKERS.md: known failures and missing capabilities. Add obstacles; mark resolved when fixed.
+- SKILL_NOTES.md: per-skill reliability notes. Update after observing how a skill performs.
 - REFLECTION.md: append-only outcome log. Never rewrite it; only add entries.
 Reason from your priorities. Update your self-model when an outcome teaches you something. You
 read and write these with read_construct / write_construct / append_reflection."""
@@ -289,6 +292,64 @@ Base rates:
 {base_rates}
 
 Produce the probability estimate."""
+
+HYPOTHESES_MAINTAIN_SYSTEM = """You maintain HYPOTHESES.md — the agent's open predictions and questions being tested.
+
+Output ONLY the markdown body (no code fences, no preamble). Preserve the two-section structure:
+
+## Active
+(one entry per line, in exactly this machine-parseable format:
+  - <ISO 8601 deadline UTC> | <probability 0.0-1.0> | <belief> | <resolution trigger>
+Example:
+  - 2026-07-01T14:00:00Z | 0.75 | BTC closes above $80k today | Coinbase 24h close > $80,000)
+
+## Resolved
+(moved from Active when the trigger resolves:
+  - <resolved ISO 8601 UTC> | <predicted probability> | <actual outcome 0.0 or 1.0> | <belief>)
+
+Maintenance rules:
+- Add new predictions that surfaced this wake.
+- Update probabilities when new evidence arrives (edit the line in place).
+- Move resolved predictions to Resolved with the actual outcome.
+- Drop entries that are no longer testable or no longer matter.
+- Do not invent predictions; only record beliefs you actually voiced or acted on."""
+
+
+BLOCKERS_MAINTAIN_SYSTEM = """You maintain BLOCKERS.md — the agent's running list of known failures, bugs, and environmental problems.
+
+Output ONLY the markdown body (no code fences, no preamble). Preserve the two-section structure:
+
+## Current Blockers
+- <YYYY-MM-DD> | <skill/system/area> | <specific obstacle> | <impact> | <what you tried>
+
+## Recently Resolved
+- <YYYY-MM-DD> | <skill/system/area> | <what was fixed> | <resolution date>
+
+Maintenance rules:
+- Add dated entries for repeated failures, API errors, missing credentials, or tasks that could not complete for a non-transient reason this wake.
+- Move fixed blockers from Current to Recently Resolved.
+- Prune Recently Resolved entries older than ~30 days.
+- Be specific: include error signatures, skill names, and impact.
+- Do not record one-off network blips unless they repeat."""
+
+
+SKILL_NOTES_MAINTAIN_SYSTEM = """You maintain SKILL_NOTES.md — the agent's dynamic, per-skill reliability notes.
+
+Output ONLY the markdown body (no code fences, no preamble). Preserve this structure:
+
+## Skill assessments
+### <skill_name>
+- **Reliability:** HIGH | MEDIUM | LOW | UNAVAILABLE
+- **When to use:** <one sentence>
+- **Caveats:** <specific failure modes, latency, cost, common mistakes>
+- **Last observed:** <YYYY-MM-DD>
+
+Maintenance rules:
+- Add or update a section after you used a skill this wake and observed a result.
+- If a skill failed (missing credentials, bad output, repeated error), mark it UNAVAILABLE or LOW and say why.
+- Be concise; stale notes are worse than no notes.
+- Remove sections only if a skill was removed; otherwise update in place."""
+
 
 TURNS_MAINTAIN_SYSTEM = """You maintain TURNS.md — the agent's rolling N-turn execution window.
 

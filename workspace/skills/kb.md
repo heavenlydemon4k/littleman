@@ -7,9 +7,7 @@ skills:
 # Knowledge Base (Read & Write)
 
 ## Purpose
-The KB stores durable research findings across sessions. Write to it when you
-learn something that will still be useful next session. Read from it before
-doing web research to avoid redundant work.
+The KB stores durable research findings and notes across sessions. Write to it when you learn something that will still be useful next session. Read from it before doing web research to avoid redundant work.
 
 ## Skills
 - `write_to_kb(topic, content, source_urls=None, confidence="MEDIUM", expires_hours=None)`
@@ -17,13 +15,13 @@ doing web research to avoid redundant work.
 - `search_kb(query, limit=10)` — full-text search across all KB entries
 
 ## When to WRITE
-- You've researched a topic with ≥ MEDIUM confidence and it will age well (>6h)
-- You've identified a base rate, reference class, or structural fact
-- You've profiled a market's resolution source (e.g. "this resolves via CME FedWatch")
+- You've researched a topic with ≥ MEDIUM confidence and it will age well (>6h).
+- You've identified a base rate, reference class, or structural fact.
+- You want to persist a durable note for future wakes.
 
 ## When to READ
-- Before starting web_research on any topic — check if a recent entry exists
-- When about to estimate probability — KB evidence = cheaper than re-searching
+- Before starting `web_search` on any topic — check if a recent entry exists.
+- When you need background on a topic you previously researched.
 
 ## Topic naming conventions
 Use lowercase, underscore-separated, specific:

@@ -128,6 +128,22 @@ class Observation(Base):
     resolved_at = Column(DateTime(timezone=True), nullable=True)
 
 
+class CalibrationEntry(Base):
+    """A single resolved probabilistic prediction for calibration tracking."""
+
+    __tablename__ = "calibration_entries"
+
+    id = Column(String, primary_key=True)
+    session_id = Column(String, nullable=False)
+    domain = Column(String, nullable=False, default="default")
+    category = Column(String, nullable=True)
+    predicted_probability = Column(Numeric(6, 4), nullable=False)
+    actual_outcome = Column(Numeric(6, 4), nullable=False)  # 0.0 or 1.0
+    context = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_at = Column(DateTime(timezone=True), nullable=False)
+
+
 class KBEntry(Base):
     __tablename__ = "kb_entries"
 
@@ -189,6 +205,23 @@ class AgentGuidance(Base):
     text = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     consumed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+# ── Mental construct (DB-backed source of truth) ───────────────────────────────
+
+class ConstructDoc(Base):
+    """A single mental construct document stored in the database.
+
+    Files under workspace/construct/ remain as rendered, human-readable mirrors of these rows.
+    The DB is the source of truth so concurrent reads/writes are coherent and versioned history
+    is possible without locking markdown files.
+    """
+
+    __tablename__ = "construct_docs"
+
+    name = Column(String, primary_key=True)            # e.g. PRIORITIES.md
+    content = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 # ── Operator profile / onboarding ─────────────────────────────────────────────

@@ -10,6 +10,15 @@ Documents:
     CALENDAR.md     — upcoming events the agent tracks for self-scheduling
     DIRECTIVE.md    — current session's directive (overwrite each session)
     REFLECTION.md   — append-only learning log
+    HYPOTHESES.md   — open predictions being tested
+    BLOCKERS.md     — known failures and blockers
+    SKILL_NOTES.md  — per-skill reliability notes
+
+Source of truth:
+    By default the files under workspace/construct/ are the source of truth. When
+    settings.db_backed_construct is True, `ConstructDoc` rows in the database are the source
+    of truth and the files are rendered mirrors for human inspection. See
+    `littleman/meta/construct_store.py` for the DB primitives.
 
 See docs/adr/0001-mental-construct-not-generational-state.md for why these are flat files
 with serial (not generational) updates.
@@ -17,10 +26,15 @@ with serial (not generational) updates.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from littleman.config import settings
+
+log = logging.getLogger("construct")
 
 # Documents that are overwritten wholesale by the agent each time they change.
 OVERWRITE_DOCS = (
@@ -30,6 +44,9 @@ OVERWRITE_DOCS = (
     "CALENDAR.md",
     "DIRECTIVE.md",
     "TURNS.md",
+    "HYPOTHESES.md",
+    "BLOCKERS.md",
+    "SKILL_NOTES.md",
 )
 # Documents that only ever grow.
 APPEND_DOCS = ("REFLECTION.md",)
@@ -49,6 +66,9 @@ ALL_DOCS = (
     "CALENDAR.md",
     "DIRECTIVE.md",
     "TURNS.md",
+    "HYPOTHESES.md",
+    "BLOCKERS.md",
+    "SKILL_NOTES.md",
     "REFLECTION.md",
 )
 
@@ -95,6 +115,9 @@ class Construct:
     calendar: str
     directive: str
     turns: str
+    hypotheses: str
+    blockers: str
+    skill_notes: str
     reflection: str
 
     def as_prompt_block(
@@ -123,6 +146,9 @@ class Construct:
             "CALENDAR.md": self.calendar,
             "DIRECTIVE.md": self.directive,
             "TURNS.md": self.turns,
+            "HYPOTHESES.md": self.hypotheses,
+            "BLOCKERS.md": self.blockers,
+            "SKILL_NOTES.md": self.skill_notes,
             "REFLECTION.md": self.reflection,
         }
         parts: list[str] = []
@@ -146,6 +172,97 @@ class Construct:
         return "\n\n".join(parts)
 
 
+def _run(coro: Any) -> Any:
+    """Run an async coroutine synchronously, best-effort.
+
+    If no event loop is running, use ``asyncio.run``. If a loop is already running
+    (e.g. inside pytest-asyncio or an ASGI worker), offload the coroutine to a
+    worker thread with a fresh event loop and block until it completes. Blocking the
+    caller's loop thread directly would deadlock, because the coroutine is scheduled
+    on that same loop. This lets synchronous ``construct.py`` consumers transparently
+    use the DB-backed store without forcing async up the whole call stack.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    import concurrent.futures
+
+    def _thread_runner() -> Any:
+        return asyncio.run(coro)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(_thread_runner).result()
+
+
+def _read_file(name: str) -> str:
+    p = _doc_path(name)
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
+def _write_file(name: str, content: str) -> None:
+    _construct_dir().mkdir(parents=True, exist_ok=True)
+    _doc_path(name).write_text(content, encoding="utf-8")
+
+
+def _db_store_enabled() -> bool:
+    return getattr(settings, "db_backed_construct", False)
+
+
+def _get_db() -> Any:
+    from littleman.db.connection import AsyncSessionLocal
+
+    return AsyncSessionLocal()
+
+
+def _read_doc(name: str) -> str:
+    if not _db_store_enabled():
+        return _read_file(name)
+
+    from littleman.meta.construct_store import read_doc as read_db_doc
+
+    async def _read() -> str:
+        async with _get_db() as db:
+            return await read_db_doc(db, name)
+
+    return _run(_read())
+
+
+def _write_doc(name: str, content: str) -> None:
+    """Write to the source of truth and re-render the mirror file if DB-backed."""
+    if _db_store_enabled():
+        from littleman.meta.construct_store import write_doc as write_db_doc
+
+        async def _write() -> None:
+            async with _get_db() as db:
+                await write_db_doc(db, name, content)
+
+        _run(_write())
+    _write_file(name, content)
+
+
+def _append_doc(name: str, entry: str) -> None:
+    """Append to the source of truth and re-render the mirror file if DB-backed."""
+    if _db_store_enabled():
+        from littleman.meta.construct_store import append_to_doc as append_db_doc
+
+        async def _append() -> None:
+            async with _get_db() as db:
+                await append_db_doc(db, name, entry)
+
+        _run(_append())
+        content = _read_doc(name)
+        _write_file(name, content)
+    else:
+        existing = _read_file(name)
+        if not existing:
+            existing = read_template(name)
+        separator = "\n\n" if existing and not existing.endswith("\n\n") else ""
+        content = existing + separator + entry.strip() + "\n"
+        _write_file(name, content)
+
+
 def is_initialised() -> bool:
     """True if the core construct documents exist (i.e. first light has run).
 
@@ -157,20 +274,18 @@ def is_initialised() -> bool:
 
 def load() -> Construct:
     """Load the live construct documents. Missing documents come back empty."""
-
-    def read(name: str) -> str:
-        p = _doc_path(name)
-        return p.read_text(encoding="utf-8") if p.exists() else ""
-
     return Construct(
-        priorities=read("PRIORITIES.md"),
-        macro_plan=read("MACRO_PLAN.md"),
-        self_model=read("SELF.md"),
-        exposure=read("EXPOSURE.md"),
-        calendar=read("CALENDAR.md"),
-        directive=read("DIRECTIVE.md"),
-        turns=read("TURNS.md"),
-        reflection=read("REFLECTION.md"),
+        priorities=_read_doc("PRIORITIES.md"),
+        macro_plan=_read_doc("MACRO_PLAN.md"),
+        self_model=_read_doc("SELF.md"),
+        exposure=_read_doc("EXPOSURE.md"),
+        calendar=_read_doc("CALENDAR.md"),
+        directive=_read_doc("DIRECTIVE.md"),
+        turns=_read_doc("TURNS.md"),
+        hypotheses=_read_doc("HYPOTHESES.md"),
+        blockers=_read_doc("BLOCKERS.md"),
+        skill_notes=_read_doc("SKILL_NOTES.md"),
+        reflection=_read_doc("REFLECTION.md"),
     )
 
 
@@ -188,17 +303,12 @@ def write_doc(name: str, content: str) -> None:
     """
     if name not in OVERWRITE_DOCS and name not in RENDERED_DOCS:
         raise ValueError(f"{name} is not an overwrite document; use append_reflection()")
-    _construct_dir().mkdir(parents=True, exist_ok=True)
-    _doc_path(name).write_text(content, encoding="utf-8")
+    _write_doc(name, content)
 
 
 def append_reflection(entry: str) -> None:
     """Append an entry to the append-only REFLECTION.md."""
-    _construct_dir().mkdir(parents=True, exist_ok=True)
-    p = _doc_path("REFLECTION.md")
-    existing = p.read_text(encoding="utf-8") if p.exists() else read_template("REFLECTION.md")
-    separator = "\n\n" if existing and not existing.endswith("\n\n") else ""
-    p.write_text(existing + separator + entry.strip() + "\n", encoding="utf-8")
+    _append_doc("REFLECTION.md", entry)
 
 
 def seed_from_templates() -> None:
@@ -213,6 +323,18 @@ def seed_from_templates() -> None:
             continue
         template = read_template(name)
         live.write_text(template, encoding="utf-8")
+
+
+async def import_files_to_db(db: Any) -> dict[str, Any]:
+    """Import existing construct files into ConstructDoc rows.
+
+    Safe to call repeatedly: only creates/updates rows that differ from the mirror files.
+    Should be invoked once at startup after init_db() when db_backed_construct is enabled.
+    """
+    from littleman.meta.construct_store import sync_from_files
+
+    docs = {name: _read_file(name) for name in ALL_DOCS}
+    return await sync_from_files(db, docs)
 
 
 def discover_workspace_files() -> list[tuple[str, str]]:

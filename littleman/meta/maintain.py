@@ -20,9 +20,12 @@ from typing import Any
 from littleman.llm import runtime
 from littleman.llm.complete import complete_text
 from littleman.llm.prompts import (
+    BLOCKERS_MAINTAIN_SYSTEM,
     CALENDAR_MAINTAIN_SYSTEM,
+    HYPOTHESES_MAINTAIN_SYSTEM,
     PRIORITIES_MAINTAIN_SYSTEM,
     SELF_MAINTAIN_SYSTEM,
+    SKILL_NOTES_MAINTAIN_SYSTEM,
     TURNS_MAINTAIN_SYSTEM,
     WORKSPACE_CORE,
 )
@@ -121,6 +124,65 @@ async def _maintain_turns(c: construct.Construct, directive: dict, summary: str,
     return False
 
 
+async def _maintain_hypotheses(c: construct.Construct, directive: dict, summary: str, exec_result: dict) -> bool:
+    """Update HYPOTHESES.md: add, update, or resolve predictions tested this wake."""
+    user = (
+        f"{WORKSPACE_CORE}\n\n"
+        f"Current HYPOTHESES.md:\n{c.hypotheses or '(empty)'}\n\n"
+        f"This wake's directive: {json.dumps(directive)}\n"
+        f"What happened: {summary}\n"
+        f"Skills used: {', '.join(exec_result.get('skills_used', [])) or 'none'}\n"
+        f"Pending resolutions: {exec_result.get('pending_resolutions', [])}\n\n"
+        "Update HYPOTHESES.md now: add new predictions, update probabilities, resolve any that "
+        "concluded, and drop untestable ones. Keep the machine-parseable format."
+    )
+    body = _strip_fences(await complete_text(HYPOTHESES_MAINTAIN_SYSTEM, user, tier="secondary"))
+    if body.strip():
+        construct.write_doc("HYPOTHESES.md", body)
+        return True
+    return False
+
+
+async def _maintain_blockers(c: construct.Construct, directive: dict, summary: str, exec_result: dict) -> bool:
+    """Update BLOCKERS.md: record repeated failures or environmental problems."""
+    failures = exec_result.get("failures", [])
+    user = (
+        f"{WORKSPACE_CORE}\n\n"
+        f"Current BLOCKERS.md:\n{c.blockers or '(empty)'}\n\n"
+        f"This wake's directive: {json.dumps(directive)}\n"
+        f"What happened: {summary}\n"
+        f"Skills used: {', '.join(exec_result.get('skills_used', [])) or 'none'}\n"
+        f"Failures: {len(failures)}\n"
+        + ("\n".join(f"- {f['task']}: {f['error']}" for f in failures) if failures else "none")
+        + "\n\nUpdate BLOCKERS.md now: add dated entries for non-transient failures, mark resolved "
+          "blockers as fixed, and prune stale entries."
+    )
+    body = _strip_fences(await complete_text(BLOCKERS_MAINTAIN_SYSTEM, user, tier="secondary"))
+    if body.strip():
+        construct.write_doc("BLOCKERS.md", body)
+        return True
+    return False
+
+
+async def _maintain_skill_notes(c: construct.Construct, directive: dict, summary: str, exec_result: dict) -> bool:
+    """Update SKILL_NOTES.md: per-skill reliability notes from this wake's usage."""
+    user = (
+        f"{WORKSPACE_CORE}\n\n"
+        f"Current SKILL_NOTES.md:\n{c.skill_notes or '(empty)'}\n\n"
+        f"This wake's directive: {json.dumps(directive)}\n"
+        f"What happened: {summary}\n"
+        f"Skills used: {', '.join(exec_result.get('skills_used', [])) or 'none'}\n"
+        f"Failures: {len(exec_result.get('failures', []))}\n\n"
+        "Update SKILL_NOTES.md now: add or update sections for skills you used, noting reliability, "
+        "caveats, and observed failure modes. Keep it concise."
+    )
+    body = _strip_fences(await complete_text(SKILL_NOTES_MAINTAIN_SYSTEM, user, tier="secondary"))
+    if body.strip():
+        construct.write_doc("SKILL_NOTES.md", body)
+        return True
+    return False
+
+
 def _render_exposure(world_state: dict) -> bool:
     """Render EXPOSURE.md deterministically from the world model. No LLM — runs every mode."""
     from littleman.meta.exposure import render_exposure
@@ -132,11 +194,51 @@ def _render_exposure(world_state: dict) -> bool:
     return False
 
 
+def _replace_section(markdown: str, heading: str, new_body: str) -> str:
+    """Replace the body under `## heading` in markdown, or append it if absent."""
+    lines = markdown.splitlines()
+    start = None
+    for i, line in enumerate(lines):
+        if line.strip().lower() == f"## {heading}".lower():
+            start = i
+            break
+
+    if start is None:
+        separator = "\n\n" if markdown and not markdown.endswith("\n\n") else ""
+        return markdown + separator + new_body.strip() + "\n"
+
+    # Find the next ## heading or end of file.
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        if lines[i].strip().startswith("## "):
+            end = i
+            break
+
+    return "\n".join(lines[: start + 1]) + "\n" + new_body.strip() + "\n" + "\n".join(lines[end:])
+
+
+async def _maintain_calibration(c: construct.Construct, db: Any) -> bool:
+    """Update the Calibration section of SELF.md deterministically from recorded outcomes."""
+    from littleman.meta.calibration import compute_calibration, render_calibration_markdown
+
+    if db is None:
+        return False
+
+    stats = await compute_calibration(db)
+    body = render_calibration_markdown(stats)
+    new_self = _replace_section(c.self_model or "", "Calibration", body)
+    if new_self.strip() != (c.self_model or "").strip():
+        construct.write_doc("SELF.md", new_self)
+        return True
+    return False
+
+
 async def maintain_construct(
     directive: dict[str, Any],
     session_summary: str,
     exec_result: dict[str, Any],
     world_state: dict[str, Any] | None = None,
+    db: Any = None,
 ) -> dict[str, Any]:
     """Maintain the agent's mental construct after a wake. Returns a status dict.
 
@@ -177,6 +279,26 @@ async def maintain_construct(
         results["turns"] = await _maintain_turns(c, directive, session_summary, exec_result)
     except Exception:  # noqa: BLE001
         results["turns"] = False
+
+    try:
+        results["calibration"] = await _maintain_calibration(c, db)
+    except Exception:  # noqa: BLE001
+        results["calibration"] = False
+
+    try:
+        results["hypotheses"] = await _maintain_hypotheses(c, directive, session_summary, exec_result)
+    except Exception:  # noqa: BLE001
+        results["hypotheses"] = False
+
+    try:
+        results["blockers"] = await _maintain_blockers(c, directive, session_summary, exec_result)
+    except Exception:  # noqa: BLE001
+        results["blockers"] = False
+
+    try:
+        results["skill_notes"] = await _maintain_skill_notes(c, directive, session_summary, exec_result)
+    except Exception:  # noqa: BLE001
+        results["skill_notes"] = False
 
     maintained = any(results.values())
     return {"maintained": maintained, "docs": results}

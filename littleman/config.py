@@ -22,6 +22,10 @@ class Settings(BaseSettings):
 
     # Workspace
     workspace_dir: Path = Path("./workspace")
+    # When True, construct files are rendered mirrors and ConstructDoc rows are the source of truth.
+    # Existing file workspaces are auto-imported on first startup. Default False for safety during
+    # the transition; tests explicitly enable it where needed.
+    db_backed_construct: bool = False
 
     # The active application running on the platform (a SOUL.md + skill pack defines it).
     # Set to "Polymarket trading" to enable the built-in prediction-market application.

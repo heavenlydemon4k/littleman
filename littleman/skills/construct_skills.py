@@ -43,6 +43,9 @@ def make_construct_skills() -> list[dict]:
                 "CALENDAR.md": c.calendar,
                 "DIRECTIVE.md": c.directive,
                 "TURNS.md": c.turns,
+                "HYPOTHESES.md": c.hypotheses,
+                "BLOCKERS.md": c.blockers,
+                "SKILL_NOTES.md": c.skill_notes,
                 "REFLECTION.md": c.reflection,
             }
             body = mapping.get(doc, "")
@@ -94,7 +97,7 @@ def make_construct_skills() -> list[dict]:
         {
             "name": "write_construct",
             "fn": write_construct,
-            "description": "Overwrite one of your construct documents (PRIORITIES.md, MACRO_PLAN.md, SELF.md, CALENDAR.md, DIRECTIVE.md).",
+            "description": "Overwrite one of your construct documents (PRIORITIES.md, MACRO_PLAN.md, SELF.md, CALENDAR.md, DIRECTIVE.md, HYPOTHESES.md, BLOCKERS.md, SKILL_NOTES.md).",
             "parameters": {
                 "type": "object",
                 "properties": {"doc": {"type": "string"}, "content": {"type": "string"}},

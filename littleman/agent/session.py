@@ -242,7 +242,7 @@ async def _run_pipeline(
             "watched_markets": state.watched_markets,
             "pending_resolutions": [p.model_dump() for p in state.pending_resolutions],
         }
-        await maintain_construct(directive_payload, summary, exec_result, world_state=_wm_snapshot)
+        await maintain_construct(directive_payload, summary, exec_result, world_state=_wm_snapshot, db=db)
     except Exception:  # noqa: BLE001 — maintenance must never break a wake
         pass
 

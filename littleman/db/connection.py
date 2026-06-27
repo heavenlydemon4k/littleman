@@ -12,6 +12,11 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(__import__("sqlalchemy").text("PRAGMA journal_mode=WAL"))
+    if settings.db_backed_construct:
+        from littleman.meta.construct import import_files_to_db
+
+        async with AsyncSessionLocal() as db:
+            await import_files_to_db(db)
 
 
 async def get_db() -> AsyncSession:

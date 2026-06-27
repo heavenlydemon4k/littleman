@@ -14,8 +14,8 @@ Search the web and return structured results (title, url, excerpt, date, source)
 #### `browse_url(url)`
 Fetch and parse the text content of a specific URL.
 
-#### `aggregate_research(topic, depth="standard")`
-Run multiple searches on a topic and return a deduplicated summary.
+#### `browse_urls(urls)`
+Fetch and parse several URLs in parallel.
 
 ### Knowledge Base
 

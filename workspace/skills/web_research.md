@@ -11,8 +11,9 @@ Gather current evidence from the web to inform probability estimates.
 Combines `web_search` (retrieves URLs + snippets) and `browse_url` (reads full page content).
 
 ## Skills involved
-- `web_search(query, num_results)` → list of `{ url, title, snippet }`
+- `web_search(query, source_filters=None, max_results=10)` → list of `{ url, title, snippet }`
 - `browse_url(url)` → `{ content, title, truncated }` (up to ~12 000 chars)
+- `browse_urls(urls)` → fetch several URLs in parallel and return `{ results, count }`
 
 ## When to use
 - Forming evidence for `estimate_probability` — always research before estimating
