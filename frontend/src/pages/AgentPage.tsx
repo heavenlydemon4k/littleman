@@ -5,6 +5,7 @@ import {
   ArrowRight, Target, ListChecks,
 } from "lucide-react";
 import clsx from "clsx";
+import { Island } from "../components/ui/Island";
 
 // -- Types -------------------------------------------------------------------
 
@@ -331,6 +332,11 @@ export function AgentPage() {
                 not bootstrapped
               </span>
             )}
+            {status?.application && (
+              <span className="rounded bg-blue-500/20 px-2 py-0.5 text-xs text-blue-300">
+                {status.application}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Btn onClick={() => action("/api/agent/run-due", "due")} busy={busy === "due"} icon={Clock}>
@@ -428,6 +434,24 @@ export function AgentPage() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Platform status card shown when not running the Polymarket trading application. */}
+            {status && status.application !== "Polymarket trading" && (
+              <Island className="mb-5 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <Activity size={13} className="text-blue-400" />
+                  <h3 className="font-mono text-sm font-semibold text-white">Platform</h3>
+                </div>
+                <p className="text-xs text-muted">
+                  Active application: <span className="text-white">{status.application}</span>
+                </p>
+                {runtime && (
+                  <p className="text-xs text-muted">
+                    Provider: <span className="text-white">{runtime.primary_model}</span>
+                  </p>
+                )}
+              </Island>
             )}
 
             {/* Agent-authored state: written by the agent itself (DIRECTIVE.md / PRIORITIES.md
