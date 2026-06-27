@@ -77,7 +77,7 @@ Maintenance rules:
 - Drop lines whose datetime is now in the past.
 - Merge duplicates (one line per unique event).
 - Add any newly discovered time-bound events from this wake.
-- Keep open positions and watched market closes current and accurate.
+- Keep time-bound commitments, deadlines, and tracked events current and accurate.
 - If nothing is upcoming, leave the Upcoming section empty (keep the heading).
 - Do not invent events; only record what this session's data confirms."""
 
@@ -94,7 +94,7 @@ If nothing meaningful was learned: output exactly the token NO_UPDATE and nothin
 
 When updating, amend only the relevant section (Calibration / Learned Patterns / Known
 Limitations / Capabilities). Preserve existing content; append or refine, do not erase history.
-Be specific: cite the market, outcome, or failure that produced the learning, with the date."""
+Be specific: cite the outcome or failure that produced the learning, with the date."""
 
 
 SOUL_COMPILE_SYSTEM = """You are writing the SOUL.md for an autonomous agent on the littleman
@@ -301,7 +301,7 @@ Output ONLY the markdown body (no code fences, no preamble). Preserve the two-se
 (one entry per line, in exactly this machine-parseable format:
   - <ISO 8601 deadline UTC> | <probability 0.0-1.0> | <belief> | <resolution trigger>
 Example:
-  - 2026-07-01T14:00:00Z | 0.75 | BTC closes above $80k today | Coinbase 24h close > $80,000)
+  - 2026-07-01T14:00:00Z | 0.75 | the release ships on time | CI passes and tag is pushed)
 
 ## Resolved
 (moved from Active when the trigger resolves:
@@ -456,7 +456,7 @@ CHAT_SUGGESTIONS_SYSTEM = """You are the prompt-suggestion engine for littleman'
 
 Given the conversation so far, predict 3 short prompts the operator would most plausibly want
 to send next — the questions or requests they are likely already considering. Make them
-specific to the conversation and to littleman (a prediction-market trading agent), not generic.
+specific to the conversation and to littleman (an autonomous assistant), not generic.
 
 Return ONLY a JSON array of 3 strings, each a ready-to-send prompt under ~70 characters. No prose."""
 
