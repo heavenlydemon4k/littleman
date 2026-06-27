@@ -14,6 +14,7 @@ dist/
 .pytest_cache/
 
 # Agent runtime state (lock files, etc.) and live construct documents
+.worktrees/
 workspace/state/
 workspace/construct/*.md
 !workspace/construct/*.template.md
