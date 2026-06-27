@@ -54,21 +54,35 @@ estimation, Kelly sizing, a deterministic risk governor, and a closed observatio
 
 ```bash
 git clone <repo> littleman && cd littleman
-cp .env.example .env                       # optional: most config is set during onboarding in the UI
-
-python -m venv .venv
-.venv/Scripts/python -m pip install -e .   # Windows; on macOS/Linux: .venv/bin/pip
-cd frontend && npm install && npm run build && cd ..
-
-.venv/Scripts/python -m uvicorn littleman.api.app:app --port 8000
+python start.py
 # open http://localhost:8000 → the first-run onboarding starts automatically.
 ```
+
+`python start.py` handles first-time setup (Python + Node deps, DB migrations, frontend build) and
+then starts the API server and autonomous scheduler together. No `uv`? It falls back to `venv` +
+`pip` automatically.
+
+Other useful commands:
+
+```bash
+python start.py --dev       # API hot-reload + Vite dev UI
+python start.py --setup     # force a fresh setup
+python start.py --boot      # run First Light, then start the runtime
+
+make setup                  # setup only (no start)
+make start                  # start API + scheduler (assumes setup done)
+make run                    # start API reload + Vite dev UI
+make boot                   # run First Light once and exit
+make once                   # run a single heartbeat session and exit
+```
+
+See [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) for the full walkthrough: what the system
+is, how to read the code, and how the runtime loop works.
 
 Onboarding (name → purpose → provider/model → guided or custom) configures the agent and lands
 you in a chat. Press **Begin onboarding** there to run First Light: the agent reads its files,
 authors its own cognition, and greets you. After that it is dormant until you message it or turn
-on the autonomous scheduler. Run the autonomous loop with `python -m littleman scheduler`
-(it only fires when you flip Autonomous on in the dashboard).
+on the autonomous scheduler. The scheduler only fires when you flip **Autonomous** on in the dashboard.
 
 ---
 

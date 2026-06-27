@@ -363,9 +363,12 @@ browser = [
 ```makefile
 make install     # uv sync + npm install in frontend/
 make migrate     # alembic upgrade head — apply database migrations
-make run         # start FastAPI (backend + scheduler together)
-make dev         # start FastAPI + Vite dev server concurrently (hot reload for both)
-make build       # npm run build — build frontend to frontend/dist/
+make setup       # install + migrate + build-ui (first-time setup)
+make start       # start FastAPI + scheduler (production-like runtime)
+make run         # start FastAPI reload + Vite dev server (development)
+make build-ui    # npm run build — build frontend to frontend/dist/
+make boot        # run First Light once and exit
+make once        # run a single heartbeat session and exit
 make test        # pytest tests/
 make lint        # ruff check littleman/
 make format      # ruff format littleman/
@@ -379,12 +382,17 @@ git clone ...
 cd littleman
 cp .env.example .env
 # edit .env with your API keys and settings
-make install
-make migrate
-make dev
+python start.py          # one-command setup + runtime start
 ```
 
-The frontend dev server runs on port 5173 and proxies `/api/*` to FastAPI on port 8000. In production (`make run`), FastAPI serves the built frontend from `frontend/dist/`.
+or, if you prefer Make:
+
+```bash
+make setup
+make start
+```
+
+The frontend dev server runs on port 5173 and proxies `/api/*` to FastAPI on port 8000. In production (`make start`), FastAPI serves the built frontend from `frontend/dist/`. See [`docs/GETTING_STARTED.md`](GETTING_STARTED.md) for the full onboarding walkthrough.
 
 ### Making a change
 
@@ -457,24 +465,28 @@ Plain assertions, no class-based test organisation unless there is a genuine gro
 
 ## 10. Running the Agent
 
-### Three processes
+### Processes
 
-A full development environment runs three processes:
+A full environment runs one of two combos:
 
-**1. FastAPI backend** (`littleman/main.py`): serves the REST API, WebSocket chat endpoint, and (in production) the static frontend. Also contains the heartbeat scheduler as a background task — it starts automatically when the API server starts.
+- **Runtime (`make start` or `python start.py`)**: FastAPI backend + heartbeat scheduler in parallel. FastAPI serves the built frontend from `frontend/dist/`.
+- **Development (`make run`)**: FastAPI backend with hot reload + Vite dev server (port 5173). The dev server proxies `/api/*` to FastAPI.
 
-**2. Frontend dev server** (Vite, port 5173): hot-reloads frontend changes during development. Proxies `/api/*` to FastAPI. Only needed in development; production serves the built bundle from FastAPI.
+There is also a **manual session runner** (`python -m littleman once`) for running a single heartbeat session immediately without waiting for the scheduler.
 
-**3. (Optional) Manual session runner** (`littleman/agent/session.py`): runs a single agent session immediately without waiting for a scheduled heartbeat. Useful for testing the session pipeline.
-
-In development, `make dev` starts processes 1 and 2 concurrently. Process 3 is invoked manually as needed.
-
-### `make dev` (recommended for development)
+### `make run` (recommended for development)
 
 ```bash
-make dev
+make run
 # FastAPI on http://localhost:8000
 # Frontend on http://localhost:5173 (proxy to FastAPI)
+```
+
+### `make start` (production-like runtime)
+
+```bash
+make start
+# FastAPI + scheduler on http://localhost:8000
 ```
 
 The frontend dashboard at `http://localhost:5173` shows the Agent, Chat, Workspace, and Settings pages.
@@ -486,10 +498,12 @@ The very first agent session is triggered via the frontend. Navigate to the Agen
 Alternatively, trigger it from the command line:
 
 ```bash
-uv run python -m littleman.agent.session --boot
+make boot
+# or
+python -m littleman boot
 ```
 
-After First Light, the scheduler (which runs inside FastAPI) automatically fires due heartbeats every `HEARTBEAT_POLL_INTERVAL_SECONDS` seconds.
+After First Light, the scheduler process (started by `make start` or `python start.py`) polls for due heartbeats every `HEARTBEAT_POLL_INTERVAL_SECONDS` seconds.
 
 ### Logs
 

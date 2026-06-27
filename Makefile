@@ -1,4 +1,4 @@
-.PHONY: install migrate run api ui scheduler session test lint format clean
+.PHONY: install migrate run start setup api ui build-ui scheduler session boot once test lint format clean
 
 install:
 	uv sync --all-extras
@@ -7,7 +7,14 @@ install:
 migrate:
 	uv run alembic upgrade head
 
-# Start everything: API + frontend dev server in parallel
+# First-time setup: install deps, run DB migrations, build frontend
+setup: install migrate build-ui
+
+# Start the production-like runtime: API + scheduler in parallel
+start: build-ui
+	make -j2 api scheduler
+
+# Start development: API (reload) + Vite dev server in parallel
 run:
 	make -j2 api ui
 
@@ -26,6 +33,12 @@ scheduler:
 
 session:
 	uv run python -m littleman.agent.session $(ARGS)
+
+boot:
+	uv run python -m littleman boot
+
+once:
+	uv run python -m littleman once
 
 test:
 	uv run pytest tests/ -v
