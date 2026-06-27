@@ -78,7 +78,7 @@ loaded unless that application is active.
 ### Lifecycle rules
 
 - **Read at turn start:** PRIORITIES, SELF, MACRO_PLAN, DIRECTIVE.
-- **Append-only:** REFLECTION (and the planned HYPOTHESES/BLOCKERS/CALENDAR).
+- **Append-only:** REFLECTION. HYPOTHESES, BLOCKERS, and CALENDAR are overwrite documents (**built**).
 - **Overwrite each turn:** DIRECTIVE (and planned PLAN/TURNS).
 - **Context budget:** each doc is capped on injection; REFLECTION is truncated to its tail so
   it cannot overflow the window (**built** — `meta/construct.py`).
