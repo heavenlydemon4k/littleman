@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { Island } from "../components/ui/Island";
+import { providerLabel } from "../llm-providers";
 
 // -- Types -------------------------------------------------------------------
 
@@ -108,9 +109,9 @@ interface SkillItem {
 }
 
 interface Runtime {
-  mode: string;
   primary_model: string;
   secondary_model: string;
+  api_base: string;
   api_key_set: boolean;
   autonomous: boolean;
 }
@@ -356,9 +357,9 @@ export function AgentPage() {
         {runtime && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-1 px-4 py-3">
             <span className="font-mono text-xs text-muted">
-              model: <span className="text-blue-300">{runtime.primary_model}</span>
+              provider: <span className="text-blue-300">{providerLabel(runtime.api_base, runtime.primary_model)}</span>
               <span className="mx-2 text-surface-4">·</span>
-              mode: <span className={runtime.mode === "real" ? "text-green-400" : "text-amber-400"}>{runtime.mode}</span>
+              model: <span className="text-white">{runtime.primary_model}</span>
               <span className="mx-2 text-surface-4">·</span>
               key: <span className={runtime.api_key_set ? "text-green-400" : "text-red-400"}>{runtime.api_key_set ? "set" : "missing"}</span>
             </span>

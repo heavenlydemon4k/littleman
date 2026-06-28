@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, PlainTextResponse
 
 from littleman.api.routes import agent, chat, onboarding, settings, workspace
 from littleman.db.connection import init_db
@@ -61,6 +61,18 @@ async def spa_not_found_handler(request, exc):
             if index.exists():
                 return FileResponse(str(index))
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
+@app.exception_handler(OSError)
+async def static_oserror_handler(request, exc):
+    """Malformed static-file paths (e.g. '/http%3A//localhost/favicon.ico') raise OSError on Windows.
+
+    Return a plain 404 so these do not surface as 500 Internal Server Errors.
+    """
+    if not request.url.path.startswith("/api"):
+        return PlainTextResponse("", status_code=404)
+    # Re-raise for API paths; they should not hit this path.
+    raise exc
 
 
 if dist.exists():

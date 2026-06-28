@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Trash2, Cpu, Palette, RefreshCw, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import clsx from "clsx";
 import { ACCENT_PRESETS, applyAccent, currentAccent } from "../theme";
-import { CUSTOM_KEY, PROVIDERS, type ProviderPreset, fullModel } from "../llm-providers";
+import { CUSTOM_KEY, PROVIDERS, type ProviderPreset, fullModel, providerLabel } from "../llm-providers";
 
 function detectProvider(apiBase: string, primaryModel: string): string {
   return (
@@ -85,7 +85,6 @@ function AppearanceSection() {
 }
 
 interface RuntimeCfg {
-  mode: string;
   primary_model: string;
   secondary_model: string;
   api_base: string;
@@ -163,7 +162,6 @@ function RuntimeSection() {
       .then((c) => {
         setCfg(c);
         setForm({
-          mode: c.mode,
           primary_model: c.primary_model,
           secondary_model: c.secondary_model,
           api_base: c.api_base,
@@ -214,7 +212,6 @@ function RuntimeSection() {
   const save = async () => {
     setSaving(true);
     const body: Record<string, unknown> = {
-      mode: form.mode,
       primary_model: form.primary_model,
       secondary_model: form.secondary_model,
       api_base: form.api_base,
@@ -301,16 +298,11 @@ function RuntimeSection() {
             <option value={CUSTOM_KEY}>Custom</option>
           </select>
         </Field>
-        <Field label="Mode">
-          <select
-            value={form.mode}
-            onChange={(e) => setForm({ ...form, mode: e.target.value })}
-            className={inputCls}
-          >
-            <option value="real">real (calls the LLM)</option>
-            <option value="fake">fake (deterministic, no API calls)</option>
-          </select>
-        </Field>
+        {cfg && (
+          <p className="text-xs text-muted">
+            {providerLabel(cfg.api_base, cfg.primary_model)} · {cfg.primary_model}
+          </p>
+        )}
         <Field
           label={`API key ${cfg.api_key_set && !editingKey ? "(saved)" : ""}`}
         >

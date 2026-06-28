@@ -50,3 +50,13 @@ export function fullModel(provider: ProviderPreset, index: number): string {
   const base = provider.models[index] ?? provider.models[0];
   return `${provider.prefix}${base}`;
 }
+
+export function providerLabel(apiBase: string, primaryModel: string): string {
+  return (
+    PROVIDERS.find(
+      (p) =>
+        p.apiBase.toLowerCase() === (apiBase || "").toLowerCase() &&
+        primaryModel.startsWith(p.prefix)
+    )?.label ?? "Custom"
+  );
+}
