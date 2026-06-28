@@ -41,7 +41,7 @@ export function OnboardingPage({ onDone }: Props) {
       display_name: name.trim(),
       purpose: purpose.trim(),
       provider: providerKey,
-      model: provider.prefix + model,
+      model: fullModel(provider, 0),
       secondary_model: fullModel(provider, 1),
       api_base: apiBase,
       api_key: apiKey || null,
@@ -78,7 +78,7 @@ export function OnboardingPage({ onDone }: Props) {
     try {
       await postWelcome();
       if (path === "custom") {
-        await complete(CUSTOM_KEY as "custom");
+        await complete(CUSTOM_KEY);
         onDone();
         window.location.assign("/chat/main");
       } else {

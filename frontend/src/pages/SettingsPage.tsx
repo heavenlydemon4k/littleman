@@ -225,7 +225,9 @@ function RuntimeSection() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    setCfg(await r.json());
+    const c = await r.json();
+    setCfg(c);
+    setProvider(detectProvider(c.api_base, c.primary_model));
     setForm((f) => ({ ...f, api_key: "" }));
     setEditingKey(false);
     setSaving(false);
@@ -235,7 +237,9 @@ function RuntimeSection() {
 
   const removeKey = async () => {
     const r = await fetch("/api/settings/runtime/api-key", { method: "DELETE" });
-    setCfg(await r.json());
+    const c = await r.json();
+    setCfg(c);
+    setProvider(detectProvider(c.api_base, c.primary_model));
     setForm((f) => ({ ...f, api_key: "" }));
     setEditingKey(false);
   };
