@@ -1,49 +1,7 @@
 import { useState } from "react";
 import { Bot, ArrowRight, ArrowLeft, ListChecks, MessageSquare, Loader2 } from "lucide-react";
 import clsx from "clsx";
-
-// Provider presets: each maps to a litellm model prefix, optional OpenAI-compatible base URL,
-// and suggested models. The model string sent to the backend is prefix + selected model.
-const PROVIDERS: Record<
-  string,
-  { label: string; apiBase: string; needsKey: boolean; prefix: string; models: string[] }
-> = {
-  kimi: {
-    label: "Kimi / Moonshot",
-    apiBase: "https://api.moonshot.ai/v1",
-    needsKey: true,
-    prefix: "openai/",
-    models: ["moonshot-v1-128k", "moonshot-v1-32k", "kimi-k2.6"],
-  },
-  anthropic: {
-    label: "Anthropic",
-    apiBase: "",
-    needsKey: true,
-    prefix: "anthropic/",
-    models: ["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"],
-  },
-  openai: {
-    label: "OpenAI",
-    apiBase: "",
-    needsKey: true,
-    prefix: "openai/",
-    models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
-  },
-  openrouter: {
-    label: "OpenRouter",
-    apiBase: "https://openrouter.ai/api/v1",
-    needsKey: true,
-    prefix: "openrouter/",
-    models: ["anthropic/claude-sonnet-4-6", "openai/gpt-4o"],
-  },
-  ollama: {
-    label: "Ollama (local)",
-    apiBase: "http://localhost:11434",
-    needsKey: false,
-    prefix: "ollama/",
-    models: ["llama3.1:8b", "qwen2.5:14b", "llama3.3:70b"],
-  },
-};
+import { CUSTOM_KEY, PROVIDERS, ProviderPreset, fullModel } from "../llm-providers";
 
 interface Props {
   onDone: () => void;
@@ -58,8 +16,8 @@ export function OnboardingPage({ onDone }: Props) {
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
   const [providerKey, setProviderKey] = useState("kimi");
-  const [model, setModel] = useState(PROVIDERS.kimi.models[0]);
-  const [apiBase, setApiBase] = useState(PROVIDERS.kimi.apiBase);
+  const [model, setModel] = useState(PROVIDERS.find((p) => p.key === "kimi")!.models[0]);
+  const [apiBase, setApiBase] = useState(PROVIDERS.find((p) => p.key === "kimi")!.apiBase);
   const [apiKey, setApiKey] = useState("");
   const [path, setPath] = useState<"guided" | "custom">("guided");
 
@@ -69,12 +27,13 @@ export function OnboardingPage({ onDone }: Props) {
   const [constraints, setConstraints] = useState("");
   const [autonomy, setAutonomy] = useState("");
 
-  const provider = PROVIDERS[providerKey];
+  const provider: ProviderPreset = PROVIDERS.find((p) => p.key === providerKey)!;
 
   const pickProvider = (key: string) => {
+    const p = PROVIDERS.find((x) => x.key === key)!;
     setProviderKey(key);
-    setModel(PROVIDERS[key].models[0]);
-    setApiBase(PROVIDERS[key].apiBase);
+    setModel(p.models[0]);
+    setApiBase(p.apiBase);
   };
 
   const postWelcome = async () => {
@@ -83,7 +42,7 @@ export function OnboardingPage({ onDone }: Props) {
       purpose: purpose.trim(),
       provider: providerKey,
       model: provider.prefix + model,
-      secondary_model: provider.prefix + (provider.models[1] ?? model),
+      secondary_model: fullModel(provider, 1),
       api_base: apiBase,
       api_key: apiKey || null,
     };
@@ -110,7 +69,7 @@ export function OnboardingPage({ onDone }: Props) {
       setError("Add a name and a purpose to continue.");
       return;
     }
-    if (provider.needsKey && !apiKey) {
+    if (provider.key !== "ollama" && !apiKey) {
       setError("This provider needs an API key.");
       return;
     }
@@ -119,7 +78,7 @@ export function OnboardingPage({ onDone }: Props) {
     try {
       await postWelcome();
       if (path === "custom") {
-        await complete("custom");
+        await complete(CUSTOM_KEY as "custom");
         onDone();
         window.location.assign("/chat/main");
       } else {
@@ -182,8 +141,8 @@ export function OnboardingPage({ onDone }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <Field label="Provider">
                 <select value={providerKey} onChange={(e) => pickProvider(e.target.value)} className={inp}>
-                  {Object.entries(PROVIDERS).map(([k, p]) => (
-                    <option key={k} value={k}>{p.label}</option>
+                  {PROVIDERS.map((p) => (
+                    <option key={p.key} value={p.key}>{p.label}</option>
                   ))}
                 </select>
               </Field>
@@ -201,7 +160,7 @@ export function OnboardingPage({ onDone }: Props) {
                 <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} className={inp} />
               </Field>
             )}
-            {provider.needsKey && (
+            {provider.key !== "ollama" && (
               <Field label="API key">
                 <input
                   type="password"
