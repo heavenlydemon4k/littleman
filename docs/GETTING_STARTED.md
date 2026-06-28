@@ -20,7 +20,7 @@ Swap those three and the same runtime becomes a research assistant, an ops monit
 
 ## Prerequisites
 
-- Python 3.12+ (3.11 works)
+- Python 3.11+
 - Node.js 20+ (for the frontend)
 - `uv` is recommended but not required; the startup script falls back to `venv` + `pip`
 - Git
@@ -39,8 +39,7 @@ This will, on first run:
 
 1. Install Python dependencies (`uv sync --all-extras`, or `pip install -e .` if you don't have `uv`).
 2. Install frontend dependencies (`npm install` in `frontend/`).
-3. Run database migrations (`alembic upgrade head`).
-4. Build the frontend (`npm run build`).
+3. Build the frontend (`npm run build`).
 
 Then it starts both:
 
@@ -49,15 +48,35 @@ Then it starts both:
 
 Open `http://localhost:8000`.
 
+The database is created automatically on first API startup (`init_db` in `littleman/db/connection.py`). There are no manual migrations to run today.
+
+### Fresh run for testing
+
+If you want to wipe all runtime state and start the onboarding from scratch — useful when testing changes to onboarding, First Light, or the construct bootstrap — use:
+
+```bash
+python start.py --fresh
+```
+
+This deletes:
+
+- `littleman.db`
+- `frontend/dist/`
+- `workspace/SOUL.md`
+- all self-authored construct docs in `workspace/construct/` (templates are preserved)
+
+Then it reinstalls dependencies, rebuilds the frontend, and starts the runtime. You get a clean onboarding flow at `http://localhost:8000`.
+
 ### Other useful startup modes
 
 | Command | What it does |
 |---------|--------------|
-| `python start.py --setup` | Force a fresh dependency install/migration/build |
+| `python start.py --setup` | Force a fresh dependency install/build |
 | `python start.py --no-setup` | Skip setup checks and start immediately |
 | `python start.py --dev` | Start API with hot reload + Vite dev UI (`http://localhost:5173`) |
 | `python start.py --boot` | Run **First Light** immediately, then start the runtime |
-| `make setup` | First-time setup only (uv + npm + migrate + build) |
+| `make fresh` | Same as `python start.py --fresh` |
+| `make setup` | First-time setup only (uv + npm + build) |
 | `make start` | Start API + scheduler (assumes setup already done) |
 | `make run` | Start API reload + Vite dev UI |
 | `make boot` | Run First Light once and exit |
@@ -197,5 +216,7 @@ make format
 | `uv: command not found` | Install [`uv`](https://github.com/astral-sh/uv), or let `start.py` fall back to `venv` + `pip`. |
 | Port 8000 in use | Change the port in `Makefile` or run `uvicorn littleman.api.app:app --port 8001`. |
 | Frontend shows a blank page | Run `make build-ui`; FastAPI serves the built files from `frontend/dist/`. |
-| Database errors | Run `make migrate` or `python start.py --setup`. |
+| Database errors | Delete `littleman.db` and restart; the schema is created automatically on startup. For a full clean slate use `python start.py --fresh`. |
 | Agent never wakes autonomously | Turn **Autonomous** on in the dashboard; the scheduler only fires when enabled. |
+| `make: command not found` | Use `python start.py` directly; it does not depend on Make. |
+| `Package 'littleman' requires a different Python` | The project supports Python 3.11+; upgrade your Python or recreate the virtualenv with a supported version. |

@@ -1,14 +1,11 @@
-.PHONY: install migrate run start setup api ui build-ui scheduler session boot once test lint format clean
+.PHONY: install run start setup fresh api ui build-ui scheduler session boot once test lint format clean
 
 install:
 	uv sync --all-extras
 	cd frontend && npm install
 
-migrate:
-	uv run alembic upgrade head
-
-# First-time setup: install deps, run DB migrations, build frontend
-setup: install migrate build-ui
+# First-time setup: install deps and build frontend
+setup: install build-ui
 
 # Start the production-like runtime: API + scheduler in parallel
 start: build-ui
@@ -17,6 +14,10 @@ start: build-ui
 # Start development: API (reload) + Vite dev server in parallel
 run:
 	make -j2 api ui
+
+# Wipe runtime state and start fresh (DB, construct docs, SOUL.md, built frontend)
+fresh:
+	python start.py --fresh
 
 api:
 	uv run uvicorn littleman.api.app:app --host 0.0.0.0 --port 8000 --reload

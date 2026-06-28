@@ -42,7 +42,7 @@ estimation, Kelly sizing, a deterministic risk governor, and a closed observatio
 
 ## Stack
 
-- **Python 3.12+** (runs on 3.11), venv-isolated
+- **Python 3.11+**, venv-isolated
 - **LiteLLM** for LLM provider abstraction (Kimi/Anthropic/OpenAI/OpenRouter/Ollama)
 - **SQLite** + aiosqlite (WAL) for all persistence
 - **FastAPI** backend + **React/TypeScript** frontend (chat, agent dashboard, workspace editor, settings)
@@ -66,12 +66,14 @@ Other useful commands:
 
 ```bash
 python start.py --dev       # API hot-reload + Vite dev UI
+python start.py --fresh     # wipe state and start from scratch (testing)
 python start.py --setup     # force a fresh setup
 python start.py --boot      # run First Light, then start the runtime
 
 make setup                  # setup only (no start)
 make start                  # start API + scheduler (assumes setup done)
 make run                    # start API reload + Vite dev UI
+make fresh                  # same as python start.py --fresh
 make boot                   # run First Light once and exit
 make once                   # run a single heartbeat session and exit
 ```

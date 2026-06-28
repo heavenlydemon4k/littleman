@@ -37,11 +37,11 @@ This is a solo project. The decisions below are calibrated for that reality.
 
 | Concern | Choice | Rationale |
 |---------|--------|-----------|
-| Language | Python 3.12+ | LLM SDKs, web scraping, data handling. No good reason to use anything else for this domain. |
+| Language | Python 3.11+ | LLM SDKs, web scraping, data handling. No good reason to use anything else for this domain. |
 | LLM provider abstraction | [LiteLLM](https://github.com/BerriAI/litellm) | Single `completion()` call covers Anthropic, OpenAI, Ollama, and 100+ others. No lock-in. |
 | Local LLM runtime | [Ollama](https://ollama.ai) | Standard, well-maintained, works offline. Pull a model, run a server, done. |
 | Database | SQLite (via `aiosqlite` + SQLAlchemy ORM) | Single file, zero config, sufficient for one agent, trivially backed up. WAL mode for concurrent reader/writer access. |
-| Migrations | [Alembic](https://alembic.sqlalchemy.org) | Standard, works with SQLite and Postgres, so switching databases later doesn't require changing the migration toolchain. |
+| Migrations | None yet (schema created on startup) | The SQLite schema is created by `init_db()` from SQLAlchemy models. Alembic can be introduced when the schema stabilises and production upgrades are needed. |
 | HTTP client | [httpx](https://www.python-httpx.org) | Async-native, clean API, supports both sync and async use. Standard for modern Python. |
 | API server | [FastAPI](https://fastapi.tiangolo.com) | Async-native, WebSocket support, automatic OpenAPI docs. Serves both the REST API and the WebSocket chat endpoint. |
 | Frontend | React + TypeScript + Vite + Tailwind CSS | Local dashboard for chat, agent observability, workspace file editing, and settings. Served via FastAPI in production, Vite dev server during development. |
@@ -160,11 +160,10 @@ littleman/
 │   ├── skills/                 # per-skill on-demand documentation (read via skill_docs.py)
 │   └── construct/              # mental construct files (PRIORITIES, SELF, MACRO_PLAN, etc.)
 │
-├── migrations/                 # Alembic migration scripts
+├── migrations/                 # reserved for future Alembic migration scripts
 │   ├── env.py
 │   ├── script.py.mako
-│   └── versions/
-│       └── 001_initial_schema.py
+│   └── versions/               # empty today; schema is created on startup
 │
 ├── tests/
 │   ├── test_heartbeat.py       # heartbeat store and scheduler logic
@@ -291,11 +290,11 @@ Some settings (LLM provider, autonomous mode on/off) can also be changed live vi
 
 SQLite in development. A single file (`littleman.db`) in the project root.
 
-The Alembic migration in `migrations/versions/001_initial_schema.py` creates the full schema (see [ARCHITECTURE.md §14](ARCHITECTURE.md#14-data-model)). Run `make migrate` to apply.
+The schema is created automatically on first API startup by `littleman/db/connection.py::init_db()` from `Base.metadata.create_all`. There are no Alembic migrations yet (the `migrations/` directory is reserved for when the schema stabilises and production upgrades are needed).
 
 The `db/connection.py` module manages a connection pool using `aiosqlite` for async access. All database access goes through this module — no module opens its own connection.
 
-**Why SQLite and not Postgres?** This is a single-process application with one user. SQLite handles concurrent reads well and handles sequential writes (which is all the scheduler + one session require) without issue. The Alembic setup means switching to Postgres is a connection string change and a `make migrate` if the need arises.
+**Why SQLite and not Postgres?** This is a single-process application with one user. SQLite handles concurrent reads well and handles sequential writes (which is all the scheduler + one session require) without issue. Switching to Postgres later is a connection string change; Alembic can be introduced when upgrades require it.
 
 **On WAL mode:** SQLite is configured in WAL (Write-Ahead Log) mode. This allows the scheduler process (reader) and an active session (writer) to operate concurrently without read-blocking.
 
@@ -362,10 +361,10 @@ browser = [
 
 ```makefile
 make install     # uv sync + npm install in frontend/
-make migrate     # alembic upgrade head — apply database migrations
-make setup       # install + migrate + build-ui (first-time setup)
+make setup       # install + build-ui (first-time setup)
 make start       # start FastAPI + scheduler (production-like runtime)
 make run         # start FastAPI reload + Vite dev server (development)
+make fresh       # wipe runtime state and start from scratch (testing)
 make build-ui    # npm run build — build frontend to frontend/dist/
 make boot        # run First Light once and exit
 make once        # run a single heartbeat session and exit
@@ -392,15 +391,26 @@ make setup
 make start
 ```
 
+To wipe all runtime state and retest onboarding from a blank slate:
+
+```bash
+python start.py --fresh
+# or
+make fresh
+```
+
 The frontend dev server runs on port 5173 and proxies `/api/*` to FastAPI on port 8000. In production (`make start`), FastAPI serves the built frontend from `frontend/dist/`. See [`docs/GETTING_STARTED.md`](GETTING_STARTED.md) for the full onboarding walkthrough.
+
+There are no Alembic migrations today; `littleman/db/connection.py::init_db` creates the SQLite schema on first API startup.
 
 ### Making a change
 
 1. Edit the relevant module
-2. If the change affects the database schema, create a new Alembic migration: `alembic revision --autogenerate -m "description"`
-3. Run `make test` — tests must pass before committing
-4. Run `make lint` — no lint errors
-5. Commit
+2. Run `make test` — tests must pass before committing
+3. Run `make lint` — no lint errors
+4. Commit
+
+If you change the SQLAlchemy models, remember that the schema is created from `Base.metadata` on startup. There is no migration system yet, so existing `littleman.db` files will need to be deleted (or migrated manually) until Alembic is introduced.
 
 ### Commit conventions
 

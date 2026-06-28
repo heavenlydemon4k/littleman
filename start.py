@@ -3,8 +3,9 @@
 
 Usage:
     python start.py              # setup (if needed) + start API + scheduler
-    python start.py --setup      # force dependency install/migrations/build
+    python start.py --setup      # force dependency install/build
     python start.py --no-setup   # skip setup checks
+    python start.py --fresh      # wipe state and start from scratch (for testing)
     python start.py --dev        # start API (reload) + Vite dev UI
     python start.py --boot       # run First Light, then start API + scheduler
 
@@ -15,7 +16,6 @@ with or without `uv` installed.
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys
@@ -25,6 +25,23 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 DIST_DIR = FRONTEND_DIR / "dist"
+WORKSPACE_DIR = PROJECT_ROOT / "workspace"
+CONSTRUCT_DIR = WORKSPACE_DIR / "construct"
+
+# Documents that, if present, signal First Light has already run.
+FIRST_LIGHT_DOCS = (
+    "PRIORITIES.md",
+    "MACRO_PLAN.md",
+    "SELF.md",
+    "DIRECTIVE.md",
+    "REFLECTION.md",
+    "EXPOSURE.md",
+    "CALENDAR.md",
+    "HYPOTHESES.md",
+    "BLOCKERS.md",
+    "SKILL_NOTES.md",
+    "TURNS.md",
+)
 
 
 def _has_uv() -> bool:
@@ -68,22 +85,73 @@ def _python_cmd(*parts: str) -> list[str]:
     return [sys.executable, *parts]
 
 
-def setup(force: bool = False) -> None:
-    """Install Python + Node deps, run migrations, build the frontend."""
-    needs_setup = force or not (PROJECT_ROOT / ".venv").exists() or not (FRONTEND_DIR / "node_modules").exists()
+def _venv_exists() -> bool:
+    return (
+        PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
+        if sys.platform == "win32"
+        else PROJECT_ROOT / ".venv" / "bin" / "python"
+    ).exists()
 
-    if needs_setup:
+
+def fresh_clean() -> None:
+    """Remove all runtime state so the next launch starts from a blank slate.
+
+    This is intentionally destructive: it wipes the database, the built frontend,
+    the agent's self-authored construct docs, and the compiled SOUL.md. Templates,
+    skill docs, AGENTS.md, and project code are left untouched.
+    """
+    print("\n==> Fresh start: wiping runtime state\n")
+
+    db_file = PROJECT_ROOT / "littleman.db"
+    if db_file.exists():
+        db_file.unlink()
+        print(f"removed {db_file}")
+
+    if DIST_DIR.exists():
+        shutil.rmtree(DIST_DIR)
+        print(f"removed {DIST_DIR}")
+
+    soul = WORKSPACE_DIR / "SOUL.md"
+    if soul.exists():
+        soul.unlink()
+        print(f"removed {soul}")
+
+    if CONSTRUCT_DIR.exists():
+        for name in FIRST_LIGHT_DOCS:
+            path = CONSTRUCT_DIR / name
+            if path.exists():
+                path.unlink()
+                print(f"removed {path}")
+
+    # Clean python cache so stale bytecode doesn't shadow freshly edited code.
+    for pycache in PROJECT_ROOT.rglob("__pycache__"):
+        shutil.rmtree(pycache, ignore_errors=True)
+    for pyc in PROJECT_ROOT.rglob("*.pyc"):
+        pyc.unlink(missing_ok=True)
+
+    print("\nRuntime state wiped. Starting setup...\n")
+
+
+def setup(force: bool = False) -> None:
+    """Install Python + Node deps and build the frontend."""
+    needs_python_env = force or not _venv_exists()
+    needs_node_modules = force or not (FRONTEND_DIR / "node_modules").exists()
+    needs_frontend_build = force or not DIST_DIR.exists()
+
+    if needs_python_env:
         if _has_uv():
             _run("install python deps", ["uv", "sync", "--all-extras"])
         else:
             _run("create venv", [sys.executable, "-m", "venv", ".venv"])
-            _run("install python deps", _python_cmd("-m", "pip", "install", "-e", ".[dev,browser]"))
+            _run(
+                "install python deps",
+                _python_cmd("-m", "pip", "install", "-e", ".[dev,browser]"),
+            )
 
+    if needs_node_modules:
         _run("install node deps", ["npm", "install"], cwd=FRONTEND_DIR)
 
-    _run("run migrations", _python_cmd("-m", "alembic", "upgrade", "head"))
-
-    if needs_setup or not DIST_DIR.exists():
+    if needs_frontend_build:
         _run("build frontend", ["npm", "run", "build"], cwd=FRONTEND_DIR)
 
 
@@ -137,11 +205,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Start the littleman agent platform.")
     parser.add_argument("--setup", action="store_true", help="Force setup before starting.")
     parser.add_argument("--no-setup", action="store_true", help="Skip setup checks.")
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Wipe runtime state (DB, construct docs, SOUL.md) and start from scratch.",
+    )
     parser.add_argument("--dev", action="store_true", help="Run API reload + Vite dev UI.")
     parser.add_argument("--boot", action="store_true", help="Run First Light before starting.")
     args = parser.parse_args()
 
-    if not args.no_setup:
+    if args.fresh:
+        fresh_clean()
+        setup(force=True)
+    elif not args.no_setup:
         setup(force=args.setup)
 
     if args.boot:
