@@ -155,6 +155,7 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
     from littleman.skills.update_self import make_update_self_skill
     from littleman.skills.openclaw_loader import load_openclaw_skills
     from littleman.skills.calibration import make_calibration_skills
+    from littleman.skills.system_config import make_system_config_skills
 
     global _registry
     registry = SkillRegistry()
@@ -200,6 +201,9 @@ def build_registry(db_session_factory: Any = None) -> SkillRegistry:
             registry.register(**skill)
 
     for skill in make_web_research_skills():
+        registry.register(**skill)
+
+    for skill in make_system_config_skills():
         registry.register(**skill)
 
     application = get_active_application()
