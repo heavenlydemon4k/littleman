@@ -1,10 +1,12 @@
-import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import FileResponse
 
 from littleman.api.routes import agent, chat, onboarding, settings, workspace
 from littleman.db.connection import init_db
@@ -43,5 +45,23 @@ async def health():
     return {"status": "ok"}
 
 dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+
+
+@app.exception_handler(StarletteHTTPException)
+async def spa_not_found_handler(request, exc):
+    """Serve the React SPA's index.html for unknown non-API HTML routes.
+
+    This makes direct navigation to /chat/main and window.location.reload()
+    after First Light work, instead of returning a JSON 404 from FastAPI.
+    """
+    if exc.status_code == 404 and not request.url.path.startswith("/api"):
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept:
+            index = dist / "index.html"
+            if index.exists():
+                return FileResponse(str(index))
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
 if dist.exists():
     app.mount("/", StaticFiles(directory=str(dist), html=True), name="static")
