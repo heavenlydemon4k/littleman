@@ -26,6 +26,11 @@ from littleman.llm.complete import complete_text
 from littleman.llm.prompts import FIRST_LIGHT_DOC_SYSTEM, agent_description, render
 from littleman.meta import construct
 
+
+class FirstLightError(Exception):
+    """Raised when First Light cannot complete because of an LLM or external failure."""
+
+
 # Documents First Light must produce.
 _FL_DOCS = ("PRIORITIES.md", "MACRO_PLAN.md", "SELF.md")
 
@@ -169,7 +174,13 @@ async def run(db: AsyncSession, force: bool = False) -> dict:
         greeting = "First Light complete. I have formed my initial bearings."
     else:
         # Agentic: the agent reads and writes its own files, then greets.
-        greeting = await _agentic_first_light(db, soul, inventory, external_state)
+        try:
+            greeting = await _agentic_first_light(db, soul, inventory, external_state)
+        except Exception as exc:
+            # Surface LLM/provider failures with a clear message instead of a raw 500.
+            raise FirstLightError(
+                f"First Light failed because the configured LLM could not be reached or returned an error: {exc}"
+            ) from exc
         # Safety net: guarantee every required doc exists even if the agent skipped one.
         for doc in _FL_DOCS:
             if _doc_is_empty(doc):

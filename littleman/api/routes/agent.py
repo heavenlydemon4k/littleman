@@ -444,9 +444,16 @@ async def first_light_run(db: AsyncSession = Depends(get_db)):
     """Run the compulsory First Light: the agent reads its files, authors its construct, and
     greets the operator (narrated into the Main session). Triggered by the chat's activate
     button right after onboarding."""
-    from littleman.meta.first_light import run as fl_run
+    from fastapi.responses import JSONResponse
+    from littleman.meta.first_light import FirstLightError, run as fl_run
 
-    res = await fl_run(db)
+    try:
+        res = await fl_run(db)
+    except FirstLightError as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"ok": False, "error": "First Light failed", "detail": str(exc)},
+        )
     return {"ok": True, "greeting": res.get("greeting"), "mode": res.get("mode")}
 
 

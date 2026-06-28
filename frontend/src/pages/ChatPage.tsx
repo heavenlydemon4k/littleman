@@ -122,7 +122,10 @@ export function ChatPage() {
     const timer = setInterval(() => setFlStep((s) => Math.min(s + 1, FL_STEPS.length - 1)), 3500);
     try {
       const r = await fetch("/api/agent/first-light", { method: "POST" });
-      if (!r.ok) throw new Error("first light failed");
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.detail || body.error || `first light failed (${r.status})`);
+      }
       clearInterval(timer);
       // The greeting is now in the Main session; reload to show it as a normal chat.
       window.location.reload();
