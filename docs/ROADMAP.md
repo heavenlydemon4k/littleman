@@ -141,6 +141,12 @@ dashboard and action feed render in the browser — verified by tests + build on
 
 Near-term, in rough priority:
 
+0. **Chat app MVP + connector architecture** — new product direction captured in
+   [`docs/CHAT_APP_MVP.md`](CHAT_APP_MVP.md). The target is a capable chat-first app where the
+   assistant can explain and safely configure its own system, then connect to external apps
+   through a connector registry with approval-gated side effects. This should happen before
+   adding more one-off integrations.
+
 1. **`EXPOSURE.md`** — ✅ DONE. A 7th construct doc: a readable risk map (capital, open exposure
    by category, drawdown from peak, circuit-breaker status, open positions). Resolved with
    operator as **deterministically rendered** (not LLM-authored) so figures can't drift, and
