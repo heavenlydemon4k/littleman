@@ -2,6 +2,17 @@ import { useCallback, useEffect, useState } from "react";
 import { Trash2, Cpu, Palette, RefreshCw, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import clsx from "clsx";
 import { ACCENT_PRESETS, applyAccent, currentAccent } from "../theme";
+import { CUSTOM_KEY, PROVIDERS, type ProviderPreset, fullModel } from "../llm-providers";
+
+function detectProvider(apiBase: string, primaryModel: string): string {
+  return (
+    PROVIDERS.find(
+      (p) =>
+        p.apiBase.toLowerCase() === (apiBase || "").toLowerCase() &&
+        primaryModel.startsWith(p.prefix)
+    )?.key ?? CUSTOM_KEY
+  );
+}
 
 export function SettingsPage() {
   return (
@@ -142,6 +153,10 @@ function RuntimeSection() {
   const [test, setTest] = useState<{ ok: boolean; detail: string } | null>(null);
   const [testing, setTesting] = useState(false);
 
+  const [provider, setProvider] = useState<string>(CUSTOM_KEY);
+  const [editingKey, setEditingKey] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+
   const load = () =>
     fetch("/api/settings/runtime")
       .then((r) => r.json())
@@ -153,9 +168,24 @@ function RuntimeSection() {
           secondary_model: c.secondary_model,
           api_base: c.api_base,
         });
+        setProvider(detectProvider(c.api_base, c.primary_model));
       });
 
   useEffect(() => { load(); }, []);
+
+  const applyProvider = (key: string) => {
+    setProvider(key);
+    if (key === CUSTOM_KEY) return;
+    const p: ProviderPreset | undefined = PROVIDERS.find((x) => x.key === key);
+    if (!p) return;
+    setForm((f) => ({
+      ...f,
+      api_base: p.apiBase,
+      primary_model: fullModel(p, 0),
+      secondary_model: fullModel(p, 1),
+    }));
+    loadModels(p.apiBase, form.api_key, fullModel(p, 0));
+  };
 
   // Fetch the provider's models for the dropdowns. Uses the unsaved key/base if present so you
   // can populate before saving. Read-only — spends no tokens.
@@ -197,6 +227,7 @@ function RuntimeSection() {
     });
     setCfg(await r.json());
     setForm((f) => ({ ...f, api_key: "" }));
+    setEditingKey(false);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -206,6 +237,7 @@ function RuntimeSection() {
     const r = await fetch("/api/settings/runtime/api-key", { method: "DELETE" });
     setCfg(await r.json());
     setForm((f) => ({ ...f, api_key: "" }));
+    setEditingKey(false);
   };
 
   const testConnection = async () => {
@@ -251,6 +283,20 @@ function RuntimeSection() {
       </p>
 
       <div className="space-y-3">
+        <Field label="Provider">
+          <select
+            value={provider}
+            onChange={(e) => applyProvider(e.target.value)}
+            className={inputCls}
+          >
+            {PROVIDERS.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}
+              </option>
+            ))}
+            <option value={CUSTOM_KEY}>Custom</option>
+          </select>
+        </Field>
         <Field label="Mode">
           <select
             value={form.mode}
@@ -261,69 +307,106 @@ function RuntimeSection() {
             <option value="fake">fake (deterministic, no API calls)</option>
           </select>
         </Field>
-        <Field label="API base URL (OpenAI-compatible endpoint)">
-          <input
-            value={form.api_base ?? ""}
-            onChange={(e) => setForm({ ...form, api_base: e.target.value })}
-            onBlur={(e) => loadModels(e.target.value, form.api_key, form.primary_model)}
-            placeholder="e.g. https://api.moonshot.ai/v1"
-            className={inputCls}
-          />
-        </Field>
-        <Field label={`API key ${cfg.api_key_set ? `(current: ${cfg.api_key_masked})` : "(not set)"}`}>
+        <Field
+          label={`API key ${cfg.api_key_set && !editingKey ? "(saved)" : ""}`}
+        >
           <div className="flex items-center gap-2">
             <input
               type="password"
-              value={form.api_key ?? ""}
+              value={
+                cfg.api_key_set && !editingKey
+                  ? cfg.api_key_masked
+                  : (form.api_key ?? "")
+              }
+              disabled={cfg.api_key_set && !editingKey}
               onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-              placeholder={cfg.api_key_set ? "Leave blank to keep existing" : "Paste key (sk-…)"}
+              placeholder={
+                cfg.api_key_set && !editingKey
+                  ? "Key saved"
+                  : "Paste key (sk-… / Moonshot key)"
+              }
               className={inputCls}
             />
             {cfg.api_key_set && (
-              <button
-                onClick={removeKey}
-                title="Remove the stored key (reverts to the .env default)"
-                className="flex-shrink-0 rounded-lg border border-border p-2 text-muted hover:border-red-500/50 hover:text-red-400 transition-colors"
-              >
-                <Trash2 size={14} />
-              </button>
+              <>
+                {!editingKey ? (
+                  <button
+                    onClick={() => {
+                      setEditingKey(true);
+                      setForm((f) => ({ ...f, api_key: "" }));
+                    }}
+                    className="flex-shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted hover:text-white transition-colors"
+                  >
+                    Edit
+                  </button>
+                ) : null}
+                <button
+                  onClick={removeKey}
+                  title="Remove the stored key"
+                  className="flex-shrink-0 rounded-lg border border-border p-2 text-muted hover:border-red-500/50 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </>
             )}
           </div>
         </Field>
 
-        {/* Models — live dropdowns */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted">
-            Models{" "}
-            {modelsState === "live" && <span className="text-green-400">· live ({models.length})</span>}
-            {modelsState === "fallback" && <span className="text-amber-400">· fallback list</span>}
-          </span>
+        <div>
           <button
-            onClick={() => loadModels(form.api_base, form.api_key, form.primary_model)}
-            disabled={modelsState === "loading"}
-            className="flex items-center gap-1 text-[11px] text-muted hover:text-white transition-colors disabled:opacity-50"
+            onClick={() => setAdvanced((a) => !a)}
+            className="text-xs text-muted hover:text-white transition-colors"
           >
-            {modelsState === "loading" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            refresh
+            {advanced ? "Hide advanced" : "Show advanced"}
           </button>
+          {advanced && (
+            <div className="mt-3 space-y-3">
+              <Field label="API base URL (OpenAI-compatible endpoint)">
+                <input
+                  value={form.api_base ?? ""}
+                  onChange={(e) => setForm({ ...form, api_base: e.target.value })}
+                  onBlur={(e) => loadModels(e.target.value, form.api_key, form.primary_model)}
+                  placeholder="e.g. https://api.moonshot.ai/v1"
+                  className={inputCls}
+                />
+              </Field>
+
+              {/* Models — live dropdowns */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted">
+                  Models{" "}
+                  {modelsState === "live" && <span className="text-green-400">· live ({models.length})</span>}
+                  {modelsState === "fallback" && <span className="text-amber-400">· fallback list</span>}
+                </span>
+                <button
+                  onClick={() => loadModels(form.api_base, form.api_key, form.primary_model)}
+                  disabled={modelsState === "loading"}
+                  className="flex items-center gap-1 text-[11px] text-muted hover:text-white transition-colors disabled:opacity-50"
+                >
+                  {modelsState === "loading" ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  refresh
+                </button>
+              </div>
+              {modelsError && (
+                <p className="text-[11px] text-amber-400">⚠️ {modelsError} — showing fallback list.</p>
+              )}
+              <Field label="Primary model (directive / strategy / probability / chat)">
+                <ModelSelect
+                  value={form.primary_model ?? ""}
+                  models={models}
+                  onChange={(v) => setForm({ ...form, primary_model: v })}
+                />
+              </Field>
+              <Field label="Secondary model (situation / lightweight)">
+                <ModelSelect
+                  value={form.secondary_model ?? ""}
+                  models={models}
+                  onChange={(v) => setForm({ ...form, secondary_model: v })}
+                />
+              </Field>
+            </div>
+          )}
         </div>
-        {modelsError && (
-          <p className="text-[11px] text-amber-400">⚠️ {modelsError} — showing fallback list.</p>
-        )}
-        <Field label="Primary model (directive / strategy / probability / chat)">
-          <ModelSelect
-            value={form.primary_model ?? ""}
-            models={models}
-            onChange={(v) => setForm({ ...form, primary_model: v })}
-          />
-        </Field>
-        <Field label="Secondary model (situation / lightweight)">
-          <ModelSelect
-            value={form.secondary_model ?? ""}
-            models={models}
-            onChange={(v) => setForm({ ...form, secondary_model: v })}
-          />
-        </Field>
 
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
