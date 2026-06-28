@@ -9,7 +9,7 @@ In the spirit of [OpenClaw](https://github.com/openclaw/openclaw), but where Ope
 heartbeat is a static human-written checklist, littleman's heartbeats are **dynamic and
 self-authored** — the agent writes, amends, and chains its own future activations.
 
-**Polymarket trading is the first application, not the product.** An application is just a
+**Polymarket trading is one possible application, not the product.** An application is just a
 `SOUL.md` (prime directive + domain knowledge), a skill pack, and optional domain config —
 swap those three and the same platform becomes a research assistant, an ops monitor, or a
 content pipeline. See [ADR 0002](docs/adr/0002-littleman-is-a-platform.md) and
@@ -35,8 +35,9 @@ content pipeline. See [ADR 0002](docs/adr/0002-littleman-is-a-platform.md) and
 - **Model-agnostic** — Kimi/Moonshot, Anthropic, OpenAI, OpenRouter, or local Ollama via
   LiteLLM; the active model is editable live in the UI.
 
-The flagship application — Polymarket trading — adds market scanning, calibrated probability
-estimation, Kelly sizing, a deterministic risk governor, and a closed observation loop.
+A reference application — Polymarket trading — adds market scanning, calibrated probability
+estimation, Kelly sizing, a deterministic risk governor, and a closed observation loop, but the
+platform itself is domain-agnostic.
 
 ---
 
@@ -117,8 +118,8 @@ Light** and owned by the agent thereafter:
 These are loaded into the system prompt each session and editable from the workspace UI. See
 [`docs/adr/0001-mental-construct-not-generational-state.md`](docs/adr/0001-mental-construct-not-generational-state.md)
 for the decision to adopt this cognitive layer while keeping execution serial (not the
-generational/parallel-context model some designs propose) — capital operations must evaluate
-against one consistent view.
+generational/parallel-context model some designs propose) — a single agent must act against one
+consistent view of the world.
 
 ## Status
 
@@ -131,8 +132,9 @@ Runs end-to-end against a live LLM (verified on Kimi/Moonshot). What works today
 - **Living mental workspace** read and maintained every wake; **safe-by-default autonomy**
   (manual unless toggled on); **keyless web search**; **22 skills** including the agent's own
   file read/write.
-- **Polymarket reference application**: live market reads + real wallet balance/position
-  reconcile (read-only, no spend). Order **signing** is the one remaining stub.
+- **Application/connector model**: domain-specific capabilities register into the same skill
+  registry; a reference Polymarket connector provides live market reads + wallet reconciliation
+  (read-only, no spend).
 - A **React UI**: onboarding, chat (with the agent's Main session), agent dashboard, workspace
   editor, settings (LLM runtime + monochrome/customizable theme).
 

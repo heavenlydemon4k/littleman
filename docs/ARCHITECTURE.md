@@ -1,12 +1,12 @@
 # Littleman — Technical Architecture
 
-> **Scope note.** Littleman is a general-purpose autonomous-agent platform; **Polymarket trading
-> is the reference application, not the product** (see [META.md](META.md) and
-> [ADR 0002](adr/0002-littleman-is-a-platform.md)). This document is the detailed system design
-> and was written around that reference application, so its examples are trading-flavoured — read
-> the trading specifics (risk governor, budget, positions) as belonging to *that application*.
-> The meta/macro/task core, mental construct, heartbeat system, and runtime are domain-agnostic.
-> For the platform-first overview, start with [META.md](META.md).
+> **Scope note.** Littleman is a general-purpose autonomous-agent platform for stateful agents
+> that run over time (see [META.md](META.md) and [ADR 0002](adr/0002-littleman-is-a-platform.md)).
+> This document describes the detailed platform design. Some later sections use the Polymarket
+> reference application as an example of a domain-specific application; read those specifics
+> (risk governor, budget, positions) as belonging to *that application*, not the platform core.
+> The meta/macro/task core, mental construct, heartbeat system, runtime, and dashboard are
+> domain-agnostic.
 
 ## Table of Contents
 
@@ -54,10 +54,10 @@
 
 Many valuable domains are **ongoing, irregular, and research-intensive** — work that does not
 arrive as discrete prompts but as a continuous stream where the hard part is deciding *what to do
-right now*. The flagship reference application, Polymarket trading, is one such domain (scan
-markets, research subjects, estimate probabilities, size positions, monitor, review on
-resolution), but the same shape recurs in research pipelines, operations monitoring, content
-operations, and personal-ops work.
+right now*. Research pipelines, operations monitoring, content operations, personal-ops work, and
+prediction-market trading all share this shape: a long-running situation that changes at
+irregular intervals, where the agent must choose what to investigate, when to act, when to
+monitor, and when to re-evaluate.
 
 In all of them a human operating manually must repeatedly answer: *what should I do right now?*
 The sequence of decisions — what to research, when to research it, when to act, when to monitor,
@@ -74,8 +74,8 @@ Littleman is a **platform** designed to eliminate the need for that ongoing huma
 situation, plans its own schedule of future actions, and executes the full cycle without a human
 specifying what to do between activations. The domain is supplied by an **application**
 (`SOUL.md` + a skill pack + optional config); the platform machinery below is domain-agnostic.
-Examples in this document are drawn from the Polymarket reference application — read the trading
-specifics as belonging to *that application*, not the platform.
+Examples in later sections are drawn from the Polymarket reference application — read those
+trading specifics as belonging to *that application*, not the platform.
 
 ---
 
@@ -97,9 +97,9 @@ The second claim is:
 
 A fixed cron schedule (e.g., run every hour) is unsuitable because:
 
-- It creates unnecessary runs when there is nothing to do (no positions to check, no markets closing soon)
-- It fails to create runs when needed at irregular times (a market closing at 14:05 requires a run at approximately 14:10, not at 15:00)
-- It does not encode intent — a 14:10 run should know it is there to check a specific position, not perform a full cycle from scratch
+- It creates unnecessary runs when there is nothing to do (no events to check, no deadlines approaching)
+- It fails to create runs when needed at irregular times (a deadline at 14:05 requires a run at approximately 14:10, not at 15:00)
+- It does not encode intent — a 14:10 run should know it is there to check a specific outcome, not perform a full cycle from scratch
 
 The heartbeat system replaces fixed scheduling with agent-authored scheduling. The agent creates heartbeat records during each session that specify when to run next, why, and with what context. The runtime executes heartbeats when their time arrives. The agent — not a human or a fixed clock — is the source of schedule entries.
 
@@ -129,7 +129,7 @@ Its **Lane Queue** system serializes tasks per session to prevent race condition
 
 **Workspace-first configuration.** The agent's identity, mission, and embedded knowledge are defined in files that are read at the start of every session, not hardcoded in source. This makes the agent's behavior transparent and editable without touching code.
 
-**SOUL.md pattern.** Littleman uses a `SOUL.md` file as its primary identity document. Where OpenClaw's `SOUL.md` defines persona and tone, Littleman's defines its domain mission (Polymarket trading), its embedded understanding of prediction markets, its risk philosophy, and its operating constraints. This is read at the start of every heartbeat session before any reasoning begins.
+**SOUL.md pattern.** Littleman uses a `SOUL.md` file as its primary identity document. Where OpenClaw's `SOUL.md` defines persona and tone, Littleman's defines its domain mission, embedded understanding of the target domain, operating philosophy, and hard constraints. The exact content is supplied by the active application; the platform only requires that `SOUL.md` exists and is read at the start of every heartbeat session before any reasoning begins.
 
 **Skills as discrete registered units.** OpenClaw skills are Markdown instruction files that describe a capability. Littleman's skill registry extends this into typed, callable Python functions with a parallel description layer that is included in the agent's context so it knows what it can do. The concept — modular, named, discoverable capabilities — is the same.
 
@@ -149,15 +149,15 @@ In Littleman, the agent writes its own heartbeat records. `HEARTBEAT.md` exists 
 
 **The heartbeat carries intent and context.**
 
-OpenClaw's heartbeat prompt is the same every run: "read HEARTBEAT.md, do what it says." Littleman's heartbeat fires with a `context` blob specifying exactly why this particular run exists — which positions to check, which markets to research, what information was expected. The agent does not re-derive its purpose from scratch; it is handed its purpose by the prior session that scheduled this wake.
+OpenClaw's heartbeat prompt is the same every run: "read HEARTBEAT.md, do what it says." Littleman's heartbeat fires with a `context` blob specifying exactly why this particular run exists — which events to check, which research threads to follow, what information was expected. The agent does not re-derive its purpose from scratch; it is handed its purpose by the prior session that scheduled this wake.
 
-**Domain specificity over generality.**
+**Domain specificity is supplied by the application, not the platform.**
 
-OpenClaw is general-purpose. Its `SOUL.md` can define any persona for any task. Littleman is purpose-built for a single domain: prediction market trading. Its domain knowledge (market mechanics, topic ontology, edge theory, calibration) is embedded in `SOUL.md` and the system prompt, not discovered at runtime. This depth is a deliberate tradeoff of generality for reliability in a specific domain.
+OpenClaw is general-purpose. Its `SOUL.md` can define any persona for any task. Littleman keeps the same general-purpose runtime but expects the active application to supply a `SOUL.md` with deep domain knowledge. A trading application embeds market mechanics, topic ontology, and edge theory; a research application embeds source-evaluation criteria and citation norms. The platform does not bake any one domain into its core.
 
-**Explicit financial risk layer.**
+**Hard limits live in application-specific governors.**
 
-OpenClaw has no concept of financial constraints. Littleman has a Risk Governor with hard limits that have veto power over all execution, circuit breakers for drawdown events, and position sizing derived from Kelly criterion. These are not prompt-level instructions; they are code-level enforcement.
+OpenClaw has no concept of domain constraints. Littleman allows an application to register governors with veto power over execution — for example, a financial risk governor with position limits and circuit breakers, or an approval gate for external sends. These are not prompt-level instructions; they are code-level enforcement supplied by the application.
 
 **Goal tree persistence across sessions.**
 
