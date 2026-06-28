@@ -429,7 +429,7 @@ export function AgentPage() {
                       mental construct from the workspace templates, sets the initial directive, and schedules the first
                       heartbeat. Run it once to activate the agent.
                     </p>
-                    <Btn onClick={() => action("/api/agent/boot", "boot")} busy={busy === "boot"} icon={Power}>
+                    <Btn onClick={() => action("/api/agent/first-light", "boot")} busy={busy === "boot"} icon={Power}>
                       Run First Light
                     </Btn>
                   </div>

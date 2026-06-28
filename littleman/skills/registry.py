@@ -127,6 +127,15 @@ class SkillRegistry:
                 )
         return "\n".join(lines)
 
+    def subset(self, names: set[str]) -> "SkillRegistry":
+        """Return a new registry containing only the named skills."""
+        new = SkillRegistry()
+        for name in names:
+            skill = self._skills.get(name)
+            if skill is not None:
+                new._skills[name] = skill
+        return new
+
 
 # Module-level registry, populated by calling build_registry()
 _registry: SkillRegistry | None = None

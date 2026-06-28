@@ -77,15 +77,29 @@ async def _onboarding_block(db: AsyncSession) -> str:
     return "\n".join(lines)
 
 
+_FIRST_LIGHT_SKILLS = {
+    "read_construct",
+    "write_construct",
+    "append_reflection",
+    "read_template",
+    "list_workspace",
+    "read_skill_doc",
+}
+
+
 def _inventory() -> str:
     from littleman.skills.registry import build_registry, get_registry
 
     try:
-        return get_registry().summary_text()
+        registry = get_registry()
     except RuntimeError:
         from littleman.db.connection import AsyncSessionLocal
 
-        return build_registry(AsyncSessionLocal).summary_text()
+        registry = build_registry(AsyncSessionLocal)
+
+    # First Light only needs workspace/construct tools; external skills (research,
+    # trading, heartbeat, etc.) are not available during bootstrap.
+    return registry.subset(_FIRST_LIGHT_SKILLS).summary_text()
 
 
 async def _author_doc_scripted(doc: str, soul: str, inventory: str, external_state: dict) -> None:
@@ -121,6 +135,9 @@ async def _agentic_first_light(db: AsyncSession, soul: str, inventory: str, exte
 
         registry = build_registry(AsyncSessionLocal)
 
+    # First Light only needs workspace/construct tools.
+    first_light_registry = registry.subset(_FIRST_LIGHT_SKILLS)
+
     onboarding = await _onboarding_block(db)
     manual = load_agent_manual()
 
@@ -128,21 +145,21 @@ async def _agentic_first_light(db: AsyncSession, soul: str, inventory: str, exte
         f"{manual}\n\n"
         f"===== SOUL.md (your identity and mission) =====\n{soul[: settings.bootstrap_max_chars]}\n\n"
         f"===== Your onboarding answers =====\n{onboarding}\n\n"
-        f"===== Your skills =====\n{inventory}\n\n"
+        f"===== Workspace tools available during First Light =====\n{inventory}\n\n"
         f"===== Current external state =====\n{json.dumps(external_state)}\n\n"
         "This is FIRST LIGHT — your first wake. You have no prior context beyond these files.\n"
         "Do, in order:\n"
         "1. Use read_construct / read_template to see the format of each construct document.\n"
         "2. Author your starting PRIORITIES.md, MACRO_PLAN.md and SELF.md with write_construct. "
-        "SELF.md must inventory the skills you actually have and note you have no track record yet. "
+        "SELF.md must inventory the skills you will have once fully operational, but note you have no track record yet. "
         "Be concrete and specific to THIS operator and mission, never generic.\n"
-        "3. When your construct is written, STOP calling tools and reply with your greeting to the "
+        "3. When the construct is written, STOP calling tools and reply with your greeting to the "
         "operator: introduce yourself, state your understanding of the mission in your own words, "
         "name your initial priorities, and ask anything you genuinely need clarified."
     )
     user = "Begin First Light now. Read your files, author your construct, then greet the operator."
 
-    result = await react_run(system, user, registry, max_iterations=10)
+    result = await react_run(system, user, first_light_registry, max_iterations=10)
     return result.final_text.strip()
 
 
