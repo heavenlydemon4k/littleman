@@ -84,7 +84,7 @@ export function OnboardingPage({ onDone }: Props) {
       provider: providerKey,
       model: provider.prefix + model,
       secondary_model: provider.prefix + (provider.models[1] ?? model),
-      api_base: apiBase || null,
+      api_base: apiBase,
       api_key: apiKey || null,
     };
     const r = await fetch("/api/onboarding/welcome", {

@@ -37,7 +37,11 @@ def _read_override() -> dict[str, Any]:
 
 
 def active() -> dict[str, Any]:
-    """Effective runtime config: .env defaults overlaid with the live override file."""
+    """Effective runtime config: .env defaults overlaid with the live override file.
+
+    The override file wins whenever it contains a key, even with an empty string, so the
+    UI can explicitly clear a custom api_base/api_key. Missing keys fall back to .env.
+    """
     base = {
         "mode": settings.llm_mode,
         "primary_model": settings.llm_primary_model,
@@ -48,13 +52,17 @@ def active() -> dict[str, Any]:
     }
     override = _read_override()
     for k in _OVERRIDE_KEYS:
-        if k in override and override[k] not in (None, ""):
+        if k in override and override[k] is not None:
             base[k] = override[k]
     return base
 
 
 def set_override(values: dict[str, Any]) -> dict[str, Any]:
-    """Persist a partial override and reset the provider cache so changes take effect."""
+    """Persist a partial override and reset the provider cache so changes take effect.
+
+    An explicit empty string means "clear this override to empty" (e.g. remove a custom
+    api_base). To revert a field to its .env default instead, use remove_override().
+    """
     current = _read_override()
     for k, v in values.items():
         if k in _OVERRIDE_KEYS:

@@ -1,7 +1,9 @@
 import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+from littleman.api.app import app
 from littleman.db.models import Base
 
 
@@ -29,3 +31,10 @@ async def db(monkeypatch):
         yield session
 
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def client():
+    """An async HTTP client for the FastAPI app."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c

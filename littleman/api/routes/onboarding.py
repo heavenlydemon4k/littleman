@@ -71,7 +71,7 @@ async def welcome(body: WelcomeBody, db: AsyncSession = Depends(get_db)):
     override: dict = {"mode": "real", "primary_model": body.model}
     if body.secondary_model:
         override["secondary_model"] = body.secondary_model
-    if body.api_base:
+    if body.api_base is not None:
         override["api_base"] = body.api_base
     if body.api_key:
         override["api_key"] = body.api_key
