@@ -70,7 +70,7 @@ async def status(db: AsyncSession = Depends(get_db)):
         "open_positions": len(wm.open_positions),
         "open_exposure_usdc": wm.open_exposure_usdc(),
         "circuit_breaker_active": wm.circuit_breaker_active,
-        "balance_is_simulated": not reconciled,
+        "balance_is_simulated": not wm.wallet_reconciled,
         "last_reconcile_at": wm.last_reconcile_at,
         "connections": connections,
         "next_heartbeat": {
